@@ -3,3 +3,4 @@ dev
 coverage
 tsconfig.tsbuildinfo
 .vite
+.vscode

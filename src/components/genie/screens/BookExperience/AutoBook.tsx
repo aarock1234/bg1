@@ -94,7 +94,7 @@ export default function AutoBook({
     async function asyncBook() {
       while (isAutoBooking && isMounted) {
         await onBook(minTime, maxTime);
-        await new Promise(resolve => setTimeout(resolve, 750));
+        await new Promise(resolve => setTimeout(resolve, 500));
       }
     }
 

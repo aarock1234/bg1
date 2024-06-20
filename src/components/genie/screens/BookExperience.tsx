@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useWakeLock } from 'react-screen-wake-lock';
 
 import { Guest, LightningLane, Offer, PlusExperience } from '@/api/genie';
 import Screen from '@/components/Screen';
@@ -7,11 +8,13 @@ import { Party, PartyProvider } from '@/contexts/Party';
 import { usePlans } from '@/contexts/Plans';
 import { useRebooking } from '@/contexts/Rebooking';
 import { useResort } from '@/contexts/Resort';
+import { timeToDate } from '@/datetime';
 import useDataLoader from '@/hooks/useDataLoader';
 import { ping } from '@/ping';
 
 import PlansButton from '../PlansButton';
 import RebookingHeader from '../RebookingHeader';
+import AutoBook from './BookExperience/AutoBook';
 import NoEligibleGuests from './BookExperience/NoEligibleGuests';
 import NoGuestsFound from './BookExperience/NoGuestsFound';
 import NoReservationsAvailable from './BookExperience/NoReservationsAvailable';
@@ -25,6 +28,11 @@ export default function BookExperience({
 }: {
   experience: PlusExperience;
 }) {
+  const { request: requestWakeLock } = useWakeLock({
+    onError: error => {
+      console.error(`error requesting wake lock: ${error}`);
+    },
+  });
   const { goTo } = useNav();
   const resort = useResort();
   const { genie } = resort;
@@ -35,13 +43,15 @@ export default function BookExperience({
     !experience.flex.available &&
       experience.flex.enrollmentStartTime !== undefined
   );
+  setPrebooking(false);
   const [offer, setOffer] = useState<Offer | null | undefined>(
     prebooking ? null : undefined
   );
   const { loadData, loaderElem } = useDataLoader();
 
-  async function book() {
+  async function book(newOffer?: Offer) {
     if (!offer || !party) return;
+    if (newOffer) setOffer(newOffer);
     loadData(
       async () => {
         let booking: LightningLane | null = null;
@@ -116,12 +126,13 @@ export default function BookExperience({
   }, [party, loadParty]);
 
   const refreshOffer = useCallback(
-    (event?: React.MouseEvent<HTMLButtonElement>) => {
-      if (!party || party.selected.length === 0) return;
+    async (event?: React.MouseEvent<HTMLButtonElement>): Promise<Offer> => {
+      if (!party || party.selected.length === 0) return undefined!;
+      let newOffer: Offer | undefined = undefined;
       loadData(
         async () => {
           try {
-            const newOffer = await genie.offer(
+            newOffer = await genie.offer(
               experience,
               party.selected,
               rebooking.current
@@ -154,8 +165,28 @@ export default function BookExperience({
           messages: { 410: offer ? 'No reservations available' : '' },
         }
       );
+
+      return newOffer!;
     },
     [genie, experience, party, offer, rebooking, loadData]
+  );
+
+  const bookBetweenTime = useCallback(
+    async (minStartTime: string, maxStartTime: string) => {
+      if (!party) return;
+
+      const newOffer = await refreshOffer();
+      if (!newOffer) return;
+
+      const minDate = timeToDate(minStartTime);
+      const maxDate = timeToDate(maxStartTime);
+      const offerDate = timeToDate(newOffer.start.time);
+
+      if (offerDate >= minDate && offerDate <= maxDate) {
+        await book(newOffer);
+      }
+    },
+    [genie, goTo, offer, party, rebooking, refreshPlans]
   );
 
   useEffect(() => {
@@ -164,6 +195,10 @@ export default function BookExperience({
 
   const noEligible = party?.eligible.length === 0;
   const noGuestsFound = noEligible && party?.ineligible.length === 0;
+
+  useEffect(() => {
+    requestWakeLock();
+  }, []);
 
   return (
     <Screen
@@ -204,9 +239,15 @@ export default function BookExperience({
           ) : !party || offer === undefined ? (
             <div />
           ) : offer === null ? (
-            <NoReservationsAvailable />
+            <>
+              <NoReservationsAvailable />
+              <AutoBook onBook={bookBetweenTime} />
+            </>
           ) : (
-            <OfferDetails offer={offer} onBook={book} />
+            <>
+              <OfferDetails offer={offer} onBook={book} />
+              <AutoBook onBook={bookBetweenTime} />
+            </>
           )}
         </PartyProvider>
       )}

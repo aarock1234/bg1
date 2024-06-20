@@ -6,7 +6,7 @@ import Overlay from './Overlay';
 export default function Spinner() {
   const { bg } = useTheme();
   return (
-    <Overlay color="bg-white">
+    <Overlay color="bg-white" className="pointer-events-none">
       <div className="w-[50px] mx-auto">
         <div aria-label="Loading…" className={`rounded-full p-[20%] ${bg}`}>
           <RefreshIcon className="animate-spin w-full text-white" />

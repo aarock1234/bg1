@@ -47,6 +47,7 @@ export abstract class ApiClient {
     params?: { [key: string]: string };
     data?: unknown;
     key?: string;
+    timeout?: number;
     ignoreUnauth?: boolean;
   }): Promise<JsonOK<T>> {
     const { swid, accessToken } = authStore.getData();
@@ -55,6 +56,7 @@ export abstract class ApiClient {
       method: request.method,
       params: request.params,
       data: request.data,
+      timeout: request.timeout,
       headers: {
         'Accept-Language': 'en-US',
         Authorization: `BEARER ${accessToken}`,

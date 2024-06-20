@@ -79,7 +79,7 @@ const libertySquare = {
 const fantasyland = {
   name: 'Fantasyland',
   sort: 5,
-  theme: { bg: 'bg-pink-600', text: 'text-pink-700' },
+  theme: { bg: 'bg-blue-600', text: 'text-blue-700' },
   park: mk,
 };
 const tomorrowland = {

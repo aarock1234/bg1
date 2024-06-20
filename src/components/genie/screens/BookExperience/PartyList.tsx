@@ -27,7 +27,7 @@ export default function PartyList({ button }: { button?: JSX.Element }) {
               onClick={() => goTo(<ModifyParty party={party} />)}
               className="ml-3"
             >
-              Modify
+              Modify Party
             </Button>
           </div>
           <GuestList guests={selected} />

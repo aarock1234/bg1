@@ -10,7 +10,7 @@ const mk = {
     e: -81.575,
     w: -81.586,
   },
-  theme: { bg: 'bg-fuchsia-600', text: 'text-fuchsia-600' },
+  theme: { bg: 'bg-sky-600', text: 'text-sky-600' },
 };
 const ep = {
   id: '80007838',

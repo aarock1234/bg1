@@ -162,7 +162,7 @@ export default function AutoBook({
           </div>
         </div>
         <Button
-          className={`p-2 text-white ${isAutoBooking && 'bg-red-500'}`}
+          className={`p-2 mb-24 text-white ${isAutoBooking && 'bg-red-500'}`}
           onClick={toggleAutoBooking}
         >
           {isAutoBooking ? 'Stop Auto Booking' : 'Start Auto Booking'}

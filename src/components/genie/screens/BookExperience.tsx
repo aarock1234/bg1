@@ -51,11 +51,15 @@ export default function BookExperience({
 
   async function book(newOffer?: Offer) {
     if (!offer || !party) return;
-    if (newOffer) setOffer(newOffer);
-    loadData(
+    newOffer && setOffer(newOffer);
+    await loadData(
       async () => {
         let booking: LightningLane | null = null;
-        booking = await genie.book(offer, rebooking.current, party.selected);
+        booking = await genie.book(
+          newOffer ?? offer,
+          rebooking.current,
+          party.selected
+        );
         rebooking.end();
         const selectedIds = new Set(party.selected.map(g => g.id));
         const guestsToCancel = booking.guests.filter(
@@ -129,7 +133,7 @@ export default function BookExperience({
     async (event?: React.MouseEvent<HTMLButtonElement>): Promise<Offer> => {
       if (!party || party.selected.length === 0) return undefined!;
       let newOffer: Offer | undefined = undefined;
-      loadData(
+      await loadData(
         async () => {
           try {
             newOffer = await genie.offer(

@@ -103,7 +103,7 @@ export default function AutoBook({
     return () => {
       isMounted = false;
     };
-  }, [isAutoBooking]);
+  }, [isAutoBooking, minTime, maxTime]);
 
   const toggleAutoBooking = () => {
     setIsAutoBooking(!isAutoBooking);

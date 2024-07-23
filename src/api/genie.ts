@@ -27,9 +27,9 @@ interface ApiExperience {
       | 'NOT_STANDBY_ENABLED'
       | 'NO_MORE_SHOWS';
     waitTime?: number;
-    displayNextShowTime?: string;
+    nextShowTime?: string;
   };
-  displayAdditionalShowTimes?: string[];
+  additionalShowTimes?: string[];
   flex?: {
     available: boolean;
     nextAvailableTime?: string;
@@ -43,7 +43,7 @@ interface ApiExperience {
   };
   virtualQueue?: {
     available: boolean;
-    waitTime: number;
+    nextAvailableTime?: string;
   };
 }
 
@@ -689,15 +689,15 @@ export class GenieClient extends ApiClient {
       booking.modifiable = isModifiable(booking);
       if (item.multipleExperiences) {
         const origAsset = item.assets.find(a => a.original);
-        if (origAsset) {
-          booking = {
-            ...booking,
-            ...this.getBookingExperienceData(
-              origAsset.content,
-              (assets[origAsset.content] as Required<Asset>).location
-            ),
-          };
-        }
+        booking = {
+          ...booking,
+          ...(origAsset
+            ? this.getBookingExperienceData(
+                origAsset.content,
+                (assets[origAsset.content] as Required<Asset>).location
+              )
+            : { id: '', name: '' }),
+        };
         booking.choices = item.assets
           .filter(a => !a.excluded && !a.original)
           .map(({ content }) => {

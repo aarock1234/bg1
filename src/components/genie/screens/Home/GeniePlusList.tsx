@@ -50,12 +50,12 @@ export default function GeniePlusList({ contentRef }: HomeTabProps) {
   const { genie } = useResort();
   const { experiences, refreshExperiences, park, loaderElem } =
     useExperiences();
-  const { sorter, SortSelect } = useSort();
+  const { sortType, sorter, SortSelect } = useSort();
   const firstUpdate = useRef(true);
 
   useEffect(() => {
     if (!firstUpdate.current) contentRef.current?.scroll(0, 0);
-  }, [SortSelect, contentRef]);
+  }, [sortType, contentRef]);
 
   useEffect(() => {
     firstUpdate.current = false;
@@ -81,12 +81,7 @@ export default function GeniePlusList({ contentRef }: HomeTabProps) {
       }
       contentRef={contentRef}
     >
-      <Experiences
-        experiences={experiences}
-        park={park}
-        dropTime={dropTime}
-        sorter={sorter}
-      />
+      <Experiences experiences={experiences} park={park} sorter={sorter} />
       {loaderElem}
     </Tab>
   );
@@ -95,13 +90,11 @@ export default function GeniePlusList({ contentRef }: HomeTabProps) {
 const Experiences = memo(function Experiences({
   experiences,
   park,
-  dropTime,
   sorter,
 }: {
   experiences: Experience[];
   park: Park;
   sorter: Sorter;
-  dropTime?: string;
 }) {
   const { goTo } = useNav();
   const theme = useTheme();
@@ -109,6 +102,7 @@ const Experiences = memo(function Experiences({
     const ids = kvdb.get<string[]>(STARRED_KEY) ?? [];
     return new Set(Array.isArray(ids) ? ids : []);
   });
+  const dropTime = upcomingTimes(park.dropTimes)[0];
   const nowMinutes = timeToMinutes(dateTimeStrings().time);
 
   function toggleStar({ id }: { id: string }) {
@@ -186,16 +180,15 @@ const Experiences = memo(function Experiences({
     .map(exp => {
       const standby = exp.standby.waitTime || 0;
       const returnTime = exp?.flex?.nextAvailableTime;
+      const priorityLevel = Math.trunc(exp.priority || 4);
       return {
         ...exp,
         lp:
           !!returnTime &&
           standby >= LP_MIN_STANDBY &&
+          priorityLevel < 3 &&
           timeToMinutes(returnTime) - nowMinutes <=
-            Math.min(
-              LP_MAX_LL_WAIT,
-              ((4 - Math.trunc(exp.priority || 4)) / 3) * standby
-            ),
+            Math.min(LP_MAX_LL_WAIT, ((4 - priorityLevel) / 3) * standby),
         starred: starred.has(exp.id),
       };
     })

@@ -2,17 +2,19 @@ import { useEffect, useState } from 'react';
 
 import { ReauthNeeded, authStore } from '@/api/auth';
 import { InvalidOrigin } from '@/api/client';
-import { GenieClient } from '@/api/genie';
+import { LLClient } from '@/api/ll';
 import { Resort, loadResort } from '@/api/resort';
 import { VQClient } from '@/api/vq';
-import { ResortProvider } from '@/contexts/Resort';
-import { setDefaultTimeZone } from '@/datetime';
+import ClientsContext, { createClients } from '@/contexts/ClientsContext';
+import ResortContext from '@/contexts/ResortContext';
+import { DateTime } from '@/datetime';
 import useDisclaimer from '@/hooks/useDisclaimer';
 import useNews from '@/hooks/useNews';
+import { navigate } from '@/navigate';
 import onVisible from '@/onVisible';
 
 import LoginForm from './LoginForm';
-import Merlock from './genie/Merlock';
+import Merlock from './ll/Merlock';
 import BGClient from './vq/BGClient';
 
 export const NEWS_VERSION = 0;
@@ -38,35 +40,34 @@ export default function App() {
 
   useEffect(() => {
     disableDoubleTapZoom();
-  }, []);
-
-  useEffect(() => {
     authStore.onUnauthorized = () => requireLogin(true);
     (async () => {
       for (const [Client, Component] of [
-        [GenieClient, Merlock],
+        [LLClient, Merlock],
         [VQClient, BGClient],
       ] as const) {
         try {
           const resort = await loadResort(Client.originToResortId(origin));
           setResort(resort);
-          setDefaultTimeZone(
+          DateTime.setTimeZone(
             {
               WDW: 'America/New_York',
               DLR: 'America/Los_Angeles',
             }[resort.id]
           );
           setContent(
-            <ResortProvider value={resort}>
-              <Component />
-            </ResortProvider>
+            <ResortContext value={resort}>
+              <ClientsContext value={createClients(resort)}>
+                <Component />
+              </ClientsContext>
+            </ResortContext>
           );
           return;
         } catch (error) {
           if (!(error instanceof InvalidOrigin)) throw error;
         }
       }
-      location.assign('https://joelface.github.io/bg1/start.html');
+      navigate('https://joelface.github.io/bg1/start.html');
     })();
   }, []);
 

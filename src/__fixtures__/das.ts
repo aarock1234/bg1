@@ -1,5 +1,6 @@
 import { avatarUrl } from '@/api/avatar';
 import { DasBooking, Experience } from '@/api/das';
+import { DateTime, ParkTime } from '@/datetime';
 import { TODAY } from '@/testing';
 
 import { mk, wdw } from './resort';
@@ -10,7 +11,6 @@ export const mickey = {
   id: 'mickey',
   name: 'Mickey Mouse',
   avatarImageUrl: avatarUrl('17532228'),
-  primary: true,
 };
 
 export const minnie = {
@@ -19,38 +19,40 @@ export const minnie = {
   avatarImageUrl: avatarUrl('90004486'),
 };
 
-export const party = [mickey, minnie];
+export const party = {
+  primaryGuest: mickey,
+  linkedGuests: [minnie],
+  selectionLimit: 4,
+};
 
 export const hm: Experience = {
   ...wdw.experience('80010208'),
-  type: 'ATTRACTION',
   available: true,
-  nextAvailableTime: '10:30:00',
+  time: new ParkTime(10, 30),
 };
 export const jc: Experience = {
   ...wdw.experience('80010153'),
-  type: 'ATTRACTION',
   available: true,
-  nextAvailableTime: '10:45:00',
+  time: new ParkTime(10, 45),
 };
 export const sm: Experience = {
   ...wdw.experience('80010190'),
-  type: 'ATTRACTION',
   available: true,
-  nextAvailableTime: '10:40:00',
+  time: new ParkTime(10, 40),
 };
 
 export const booking: DasBooking = {
   type: 'DAS',
   subtype: 'IN_PARK',
-  id: hm.id,
+  experience: hm,
+  facilityId: hm.id,
   name: hm.name,
+  land: hm.land,
   park: mk,
   guests: [
     { ...mickey, entitlementId: 'ent1' },
     { ...minnie, entitlementId: 'ent2' },
   ],
-  start: { date: TODAY, time: '10:30:00' },
-  end: {},
-  bookingId: 'hm1030',
+  start: new DateTime(TODAY, new ParkTime(10, 30)),
+  id: 'hm1030',
 };

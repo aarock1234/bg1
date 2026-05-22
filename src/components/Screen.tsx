@@ -1,4 +1,6 @@
-import { Theme, ThemeProvider, useTheme } from '@/contexts/Theme';
+import { use } from 'react';
+
+import ThemeContext, { Theme } from '@/contexts/ThemeContext';
 
 import HeaderBar from './HeaderBar';
 
@@ -9,7 +11,7 @@ export interface ScreenProps {
   subhead?: React.ReactNode;
   footer?: React.ReactNode;
   theme?: Theme;
-  contentRef?: React.MutableRefObject<HTMLDivElement | null>;
+  ref?: React.RefObject<HTMLDivElement | null>;
 }
 
 export interface ScreenRef {
@@ -23,21 +25,15 @@ export default function Screen({
   footer,
   theme,
   children,
-  contentRef,
+  ref,
 }: ScreenProps) {
-  const defaultTheme = useTheme();
-  theme ??= defaultTheme;
+  theme ??= use(ThemeContext);
 
   return (
-    <ThemeProvider value={theme}>
+    <ThemeContext value={theme}>
       <div className="fixed inset-0 flex flex-col">
-        <HeaderBar title={title} subhead={subhead}>
-          {buttons}
-        </HeaderBar>
-        <div
-          ref={contentRef}
-          className="relative flex-1 overflow-auto px-3 pb-3"
-        >
+        <HeaderBar title={title} buttons={buttons} subhead={subhead} />
+        <div ref={ref} className="relative flex-1 overflow-auto px-3 pb-5">
           {children}
         </div>
         {footer && (
@@ -46,6 +42,6 @@ export default function Screen({
           </div>
         )}
       </div>
-    </ThemeProvider>
+    </ThemeContext>
   );
 }

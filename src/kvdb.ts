@@ -1,26 +1,38 @@
-export type Key = string | string[];
+import { parkDate } from './datetime';
 
-const keyStr = (key: Key) => (Array.isArray(key) ? key.join('.') : key);
+interface DailyValue<T> {
+  value: T;
+  date: string;
+}
 
 export default {
-  get<T = unknown>(key: Key) {
-    const json = localStorage.getItem(keyStr(key));
+  get<T = unknown>(key: string) {
+    const json = localStorage.getItem(key);
     try {
       return JSON.parse(json ?? '') as T;
     } catch {
-      return;
+      return undefined;
     }
   },
 
-  set<T = unknown>(key: Key, value?: T) {
-    localStorage.setItem(keyStr(key), JSON.stringify(value));
+  set<T = unknown>(key: string, value: T) {
+    localStorage.setItem(key, JSON.stringify(value));
   },
 
-  delete(key: Key) {
-    localStorage.removeItem(keyStr(key));
+  delete(key: string) {
+    localStorage.removeItem(key);
   },
 
   clear() {
     localStorage.clear();
+  },
+
+  getDaily<T = unknown>(key: string) {
+    const { date, value } = this.get<DailyValue<T>>(key) ?? {};
+    return date === parkDate() ? value : undefined;
+  },
+
+  setDaily<T = unknown>(key: string, value: T) {
+    this.set<DailyValue<T>>(key, { date: parkDate(), value });
   },
 };

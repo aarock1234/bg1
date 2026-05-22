@@ -5,7 +5,8 @@
   "license": "GPL-3.0-only",
   "repository": "github:joelface/bg1",
   "dependencies": {
-    "preact": "^10.19.6"
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1"
   },
   "devDependencies": {
     "@prefresh/vite": "^2.4.5",
@@ -47,7 +48,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "checkall": "npm test && npm run lint && npm run typecheck",
-    "test": "jest",
+    "test": "TZ=UTC jest",
     "coverage": "jest --coverage --coverageDirectory=.coverage",
     "lint": "eslint src",
     "lint:fix": "eslint --fix src",

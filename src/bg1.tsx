@@ -1,3 +1,4 @@
+import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 
 import App from './components/App';
@@ -13,7 +14,11 @@ function main() {
   document.close();
   addViewportMeta();
   addBlankFavicon();
-  createAppRoot().render(<App />);
+  createAppRoot().render(
+    <StrictMode>
+      <App />
+    </StrictMode>
+  );
 }
 
 function addViewportMeta() {

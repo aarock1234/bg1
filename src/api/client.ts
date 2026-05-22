@@ -1,4 +1,5 @@
 import { JsonOK, fetchJson } from '@/fetch';
+import { RateLimit } from '@/ratelimit';
 
 import { authStore } from './auth';
 import { Resort } from './resort';
@@ -21,6 +22,7 @@ export class RequestError extends Error {
 export abstract class ApiClient {
   protected resort: Resort;
   protected origin: string;
+  protected rateLimit = new RateLimit(5);
 
   protected static origins = {
     WDW: 'https://disneyworld.disney.go.com',
@@ -50,6 +52,7 @@ export abstract class ApiClient {
     timeout?: number;
     ignoreUnauth?: boolean;
   }): Promise<JsonOK<T>> {
+    this.rateLimit.enforce();
     const { swid, accessToken } = authStore.getData();
     const url = this.origin + request.path;
     const res = await fetchJson(url, {

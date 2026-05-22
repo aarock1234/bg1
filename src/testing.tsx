@@ -3,18 +3,49 @@ import {
   ByRoleMatcher,
   ByRoleOptions,
   act,
+  queries as baseQueries,
+  screen as baseScreen,
+  within as baseWithin,
+  buildQueries,
   fireEvent,
   queryHelpers,
-  screen,
   waitForElementToBeRemoved,
-  within,
 } from '@testing-library/react';
 
+import NavContext from './contexts/NavContext';
+
+/* eslint-disable-next-line react-refresh/only-export-components */
 export * from '@testing-library/react';
 
 export const YESTERDAY = '2021-09-30';
 export const TODAY = '2021-10-01';
 export const TOMORROW = '2021-10-02';
+
+function queryAllByTime(c: HTMLElement, time: unknown) {
+  time = String(time);
+  return [...c.getElementsByTagName('time')].filter(
+    elem => elem.dateTime === time || elem.textContent === time
+  ) as HTMLElement[];
+}
+
+const [queryByTime, getAllByTime, getByTime, findAllByTime, findByTime] =
+  buildQueries(
+    queryAllByTime,
+    (c, time) => `Found multiple time elements: ${time}`,
+    (c, time) => `Unable to find a time element: ${time}`
+  );
+const queries = {
+  ...baseQueries,
+  queryAllByTime,
+  queryByTime,
+  getAllByTime,
+  getByTime,
+  findAllByTime,
+  findByTime,
+};
+export const within = (elem: HTMLElement) =>
+  baseWithin<typeof queries>(elem, queries);
+export const screen = { ...baseScreen, ...within(document.body) };
 
 function getQueryError(message: string) {
   const error = queryHelpers.getElementError(message, getContainerElem());
@@ -29,14 +60,13 @@ function getQueryError(message: string) {
 const getTextError = (text: string) =>
   getQueryError(`Unable to find element with text: ${text}`);
 
-const withinActive = () =>
-  within(
-    document.querySelector<HTMLElement>('article:not([hidden])') ??
-      document.body
-  );
+const getTimeError = (time: unknown) =>
+  getQueryError(`Unable to find time element: ${time}`);
 
 const getContainerElem = () =>
   document.querySelector<HTMLElement>('article:not([hidden])') ?? document.body;
+
+const withinActive = () => within(getContainerElem());
 
 export const see = Object.assign(
   (text: string, role?: ByRoleMatcher, options?: ByRoleOptions) => {
@@ -48,7 +78,7 @@ export const see = Object.assign(
       }
     } else {
       const c = withinActive();
-      for (const q of [c.getByText, c.getByTitle]) {
+      for (const q of [c.getByText, c.getByTitle, c.getByLabelText]) {
         try {
           return q(text);
         } catch {
@@ -59,21 +89,33 @@ export const see = Object.assign(
     throw getTextError(text);
   },
   {
-    all(text: string) {
-      const c = within(getContainerElem());
+    time(time: unknown) {
       try {
-        return [...c.queryAllByText(text), ...c.queryAllByTitle(text)];
+        return withinActive().getByTime(time);
+      } catch {
+        throw getTimeError(time);
+      }
+    },
+    times(time: string) {
+      try {
+        return withinActive().getAllByTime(time);
+      } catch {
+        throw getTimeError(time);
+      }
+    },
+    all(text: string) {
+      const { queryAllByText, queryAllByTitle } = withinActive();
+      try {
+        return [...queryAllByText(text), ...queryAllByTitle(text)];
       } catch {
         throw getTextError(text);
       }
     },
     no(text: string, role?: ByRoleMatcher) {
-      const active = within(getContainerElem());
+      const { queryByRole, queryByText } = withinActive();
       try {
         return expect(
-          role
-            ? active.queryByRole(role, { name: text })
-            : active.queryByText(text)
+          role ? queryByRole(role, { name: text }) : queryByText(text)
         ).not.toBeInTheDocument();
       } catch {
         throw getQueryError(`Found element with text: ${text}`);
@@ -109,15 +151,16 @@ export function click(textOrElem: string | HTMLElement, role?: ByRoleMatcher) {
 
 export async function loading() {
   try {
-    await waitForElementToBeRemoved(() => screen.queryByLabelText('Loading…'), {
-      timeout: 5000,
-    });
+    await waitForElementToBeRemoved(
+      () => withinActive().queryByLabelText('Loading…'),
+      { timeout: 5000 }
+    );
   } catch {
     throw getQueryError("Didn't show loading spinner");
   }
 }
 
-export function setTime(time: string, minutes = 0) {
+export function setTime(time: unknown, minutes = 0) {
   const now = new Date(`${TODAY}T${time}-0400`);
   jest.useFakeTimers({ now });
   if (minutes) jest.advanceTimersByTime(minutes * 60_000);
@@ -167,3 +210,11 @@ export function revisitTab(delaySec = 60) {
     toggleVisibility();
   });
 }
+
+export const nav = {
+  goTo: jest.fn(),
+  goBack: jest.fn(),
+  Provider: ({ children }: { children: React.ReactNode }) => {
+    return <NavContext value={nav}>{children}</NavContext>;
+  },
+};

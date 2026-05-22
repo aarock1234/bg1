@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useTransition } from 'react';
 
 import Spinner from '@/components/Spinner';
 import useFlash from '@/hooks/useFlash';
@@ -12,8 +12,7 @@ export type DataLoader = (
     messages?: {
       error?: string;
       request?: string;
-      [status: number]: string;
-    };
+    } & { [httpStatusOrErrorName: string | number]: string };
     minLoadTime?: number;
   }
 ) => Promise<void>;
@@ -21,9 +20,8 @@ export type DataLoader = (
 export default function useDataLoader(): {
   loaderElem: React.ReactNode;
   loadData: DataLoader;
-  flash: typeof flash;
 } {
-  const [loadCount, setLoadCount] = useState(0);
+  const [isPending, startTransition] = useTransition();
   const [flashElem, flash] = useFlash();
 
   const loadData = useCallback<DataLoader>(
@@ -41,34 +39,38 @@ export default function useDataLoader(): {
         flashArgs = args;
       }
 
-      setLoadCount(count => count + 1);
-      const awaken = sleep(minLoadTime);
-      try {
-        await callback(setFlashArgs);
-      } catch (error: any) {
-        const status = error?.response?.status;
-        if (msgs[error.name] !== undefined) {
-          setFlashArgs(msgs[error.name], 'error');
-        } else if (Number.isInteger(status)) {
-          setFlashArgs(status in msgs ? msgs[status] : msgs.request, 'error');
-        } else {
-          console.error(error);
-          setFlashArgs(msgs.error, 'error');
-        }
-      }
-      await awaken;
-      setLoadCount(count => count - 1);
-      flash(...flashArgs);
+      return new Promise(resolve => {
+        startTransition(async () => {
+          const awaken = sleep(minLoadTime);
+          try {
+            await callback(setFlashArgs);
+          } catch (error: any) {
+            const status = error?.response?.status;
+            const { name } = error;
+            if (error instanceof Error && msgs[name]) {
+              setFlashArgs(msgs[name], 'error');
+            } else if (Number.isInteger(status)) {
+              setFlashArgs(msgs[status] ? msgs[status] : msgs.request, 'error');
+            } else {
+              console.error(error);
+              setFlashArgs(msgs.error, 'error');
+            }
+          }
+          await awaken;
+          startTransition(() => flash(...flashArgs));
+          resolve();
+        });
+      });
     },
     [flash]
   );
 
   const loaderElem =
-    loadCount > 0 || flashElem ? (
+    isPending || flashElem ? (
       <>
-        {loadCount > 0 && <Spinner />}
+        {isPending && <Spinner />}
         {flashElem}
       </>
     ) : null;
-  return { loadData, loaderElem, flash };
+  return { loadData, loaderElem };
 }

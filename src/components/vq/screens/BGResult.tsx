@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
+import { use, useEffect, useState } from 'react';
 
 import { Guest, JoinQueueResult, Queue } from '@/api/vq';
 import FloatingButton from '@/components/FloatingButton';
 import GuestList from '@/components/GuestList';
-import { useNav } from '@/contexts/Nav';
+import NavContext from '@/contexts/NavContext';
 
 import QueueScreen from './QueueScreen';
 import SelectQueue from './SelectQueue';
@@ -23,7 +23,7 @@ export default function BGResult({
   const hasBG = boardingGroup !== null;
   const joinedGuests = guests.filter(g => !(g.id in conflicts));
   const failedGuests = guests.filter(g => g.id in conflicts);
-  const { goBack } = useNav();
+  const { goBack } = use(NavContext);
   const [doneShown, setDoneShown] = useState(false);
 
   useEffect(() => {

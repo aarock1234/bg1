@@ -1,80 +1,27 @@
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useLayoutEffect,
-  useRef,
-} from 'react';
+import { use, useLayoutEffect } from 'react';
 
-import { useNav } from '@/contexts/Nav';
-import { useTheme } from '@/contexts/Theme';
+import TabsContext from '@/contexts/TabContext';
 
 import Screen, { ScreenProps } from './Screen';
-
-export interface TabDef {
-  name: string;
-  icon: JSX.Element;
-  component: React.FC<any>;
-}
-
-const TabsContext = createContext<{
-  tabs: TabDef[];
-  active: TabDef;
-  changeTab: (tab: TabDef['name']) => void;
-  scrollPos: {
-    get: () => number;
-    set: (pos: number) => void;
-  };
-  footer?: React.ReactNode;
-}>({
-  tabs: [],
-  active: {
-    name: '',
-    icon: <div />,
-    component: () => null,
-  },
-  changeTab: () => undefined,
-  scrollPos: { get: () => 0, set: () => undefined },
-});
-const useTabs = () => useContext(TabsContext);
-
-function TabButton({ name, icon }: TabDef) {
-  const theme = useTheme();
-  const { active, changeTab } = useTabs();
-  if (!changeTab) return null;
-  const isActive = active?.name === name;
-  const iconStyles = isActive
-    ? `bg-white bg-opacity-90 ${theme.text}`
-    : `${theme.bg} text-white`;
-  return (
-    <button className={`px-4 py-2`} onClick={() => changeTab(name)}>
-      <div className={`min-w-[3rem] rounded-full py-1.5 ${iconStyles}`}>
-        {icon}
-      </div>
-      <div className="mt-0.5 text-sm">{name}</div>
-    </button>
-  );
-}
+import TabButton from './TabButton';
 
 export default function Tab({
   title,
   buttons,
   subhead,
   children,
-  contentRef,
+  ref,
 }: ScreenProps) {
-  const { tabs, scrollPos, footer } = useTabs();
-  let ref = useRef<HTMLDivElement | null>(null);
-  if (contentRef) ref = contentRef;
+  const { tabs, scrollPos, footer } = use(TabsContext);
 
   useLayoutEffect(() => {
-    const elem = ref.current;
+    const elem = ref?.current;
     if (!elem) return;
     elem.scroll(0, scrollPos.get());
     const updateScrollPos = () => scrollPos.set(elem.scrollTop);
     elem.addEventListener('scroll', updateScrollPos);
     return () => elem.removeEventListener('scroll', updateScrollPos);
-  }, [scrollPos]);
+  }, [scrollPos, ref]);
 
   return (
     <Screen
@@ -91,51 +38,9 @@ export default function Tab({
           {footer}
         </>
       }
-      contentRef={ref}
+      ref={ref}
     >
       {children}
     </Screen>
   );
-}
-
-export function withTabs<T extends TabDef>(
-  { tabs, footer }: { tabs: T[]; footer: React.ReactNode },
-  Component: React.FC<{ tab: T }>
-) {
-  return function Tabbed({ tabName }: { tabName: T['name'] }) {
-    const { goTo } = useNav();
-    const changeTab = useCallback(
-      (name: T['name']) => {
-        if (name !== tabName) {
-          goTo(<Tabbed tabName={name} />, { replace: true });
-        }
-      },
-      [tabName, goTo]
-    );
-    const scrollPos = useRef(Object.fromEntries(tabs.map(t => [t.name, 0])));
-    const active = tabs.find(({ name }) => name === tabName) ?? tabs[0];
-
-    if (!active) return null;
-
-    return (
-      <TabsContext.Provider
-        value={{
-          tabs,
-          active,
-          changeTab,
-          scrollPos: {
-            get: () => {
-              return scrollPos.current[active.name];
-            },
-            set: pos => {
-              scrollPos.current[active.name] = pos;
-            },
-          },
-          footer,
-        }}
-      >
-        <Component tab={active} />
-      </TabsContext.Provider>
-    );
-  };
 }

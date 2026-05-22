@@ -1,10 +1,12 @@
-import { useNav } from '@/contexts/Nav';
-import { useTheme } from '@/contexts/Theme';
+import { use } from 'react';
+
+import NavContext, { NavError } from '@/contexts/NavContext';
+import ThemeContext from '@/contexts/ThemeContext';
 
 const TYPES = {
-  normal: 'py-1',
-  small: 'py-1.5 text-xs uppercase tracking-wide',
-  full: 'w-full py-3',
+  normal: 'py-0.75',
+  small: 'py-1.25 text-xs uppercase tracking-wide',
+  full: 'w-full py-2.75',
 };
 
 export default function Button<P>(
@@ -12,26 +14,27 @@ export default function Button<P>(
     onClick?: () => void | Promise<void>;
     type?: keyof typeof TYPES;
     back?: boolean | { screen?: React.FC<P>; props?: Partial<P> };
+    color?: string;
+    border?: string;
   }
 ) {
-  const { goBack } = useNav();
-  const { type, back, onClick, className, ...attrs } = props;
-  let cls = `${TYPES[type || 'normal']} ${className || ''}`;
-  const { bg } = useTheme();
-  if (!cls.includes(' bg-')) cls += ` ${bg} text-white`;
+  const { goBack } = use(NavContext);
+  const { type, back, onClick, className, color, border, ...attrs } = props;
+  const cls = `${TYPES[type || 'normal']} ${className || ''} ${color ?? `${use(ThemeContext).bg} text-white`} ${border ?? 'border border-black/20 rounded-lg'}`;
   return (
     <button
-      onClick={async () => {
-        if (onClick) await onClick();
+      onClick={async event => {
+        event.stopPropagation();
         if (back) {
-          if (back === true) {
-            goBack();
-          } else {
-            goBack(back);
+          try {
+            await goBack(back === true ? undefined : back);
+          } catch (error) {
+            if (!(error instanceof NavError)) throw error;
           }
         }
+        if (onClick) await onClick();
       }}
-      className={`${cls} inline-flex items-center justify-center min-w-[36px] rounded-lg px-2 font-semibold disabled:opacity-50`}
+      className={`${cls} inline-flex items-center justify-center min-w-9 px-1.75 font-semibold disabled:opacity-50`}
       {...attrs}
     />
   );

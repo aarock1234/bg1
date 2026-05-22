@@ -1,11 +1,11 @@
-import { Nav } from '@/contexts/Nav';
+import NavProvider from '@/providers/NavProvider';
 
 import SelectQueue from './screens/SelectQueue';
 
 export default function BGClient() {
   return (
-    <Nav>
+    <NavProvider>
       <SelectQueue />
-    </Nav>
+    </NavProvider>
   );
 }

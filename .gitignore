@@ -2,5 +2,7 @@ node_modules
 dev
 coverage
 tsconfig.tsbuildinfo
+.coverage
+.DS_Store
 .vite
 .vscode

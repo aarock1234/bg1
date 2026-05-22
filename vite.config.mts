@@ -1,4 +1,5 @@
-import prefresh from '@prefresh/vite';
+import tailwindcss from '@tailwindcss/vite';
+import react from '@vitejs/plugin-react';
 import path from 'path';
 import { defineConfig } from 'vite';
 import obfuscatorPlugin from 'vite-plugin-javascript-obfuscator';
@@ -10,6 +11,9 @@ const server = {
     cert: './tls/dev.cert',
     key: './tls/dev.key',
   },
+  headers: {
+    'Access-Control-Allow-Origin': '*',
+  },
 };
 
 export default defineConfig({
@@ -17,8 +21,6 @@ export default defineConfig({
   root: 'src',
   resolve: {
     alias: {
-      react: 'preact/compat',
-      'react-dom': 'preact/compat',
       '@/': path.join(__dirname, 'src') + '/',
     },
   },
@@ -26,7 +28,7 @@ export default defineConfig({
     outDir: '../dist',
     emptyOutDir: false,
     rollupOptions: {
-      input: ['src/bg1.tsx', 'src/bg1.css'],
+      input: ['src/bg1.tsx', 'src/bg1.css', 'src/responder.html'],
       output: {
         entryFileNames: '[name].js',
         chunkFileNames: '[name].js',
@@ -34,14 +36,14 @@ export default defineConfig({
       },
     },
   },
-  optimizeDeps: { include: ['preact', 'preact/hooks', 'preact/compat'] },
   esbuild: {
     charset: 'ascii',
-    jsxInject: `import * as React from 'react'`,
   },
   server,
   preview: server,
   plugins: [
+    react(),
+    tailwindcss(),
     obfuscatorPlugin({
       include: ['src/api/diu/*'],
       apply: 'build',
@@ -52,6 +54,5 @@ export default defineConfig({
         stringArrayEncoding: ['base64'],
       },
     }),
-    +(process.env.HMR ?? 0) ? prefresh() : null,
   ],
 });

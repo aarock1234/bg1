@@ -1,19 +1,19 @@
-import { useEffect, useState } from 'react';
+import { use, useEffect, useState } from 'react';
 
 import { Guest, Queue } from '@/api/vq';
 import FloatingButton from '@/components/FloatingButton';
 import GuestList from '@/components/GuestList';
-import { useNav } from '@/contexts/Nav';
-import { useResort } from '@/contexts/Resort';
+import ClientsContext from '@/contexts/ClientsContext';
+import NavContext from '@/contexts/NavContext';
 import useDataLoader from '@/hooks/useDataLoader';
 
 import JoinQueue from './JoinQueue';
 import QueueScreen from './QueueScreen';
 
 export default function ChooseParty({ queue }: { queue: Queue }) {
-  const { goTo } = useNav();
-  const { vq } = useResort();
-  const { loadData, loaderElem, flash } = useDataLoader();
+  const { goTo } = use(NavContext);
+  const { vq } = use(ClientsContext);
+  const { loadData, loaderElem } = useDataLoader();
   const [guests, setGuests] = useState<Guest[]>([]);
   const [party, setParty] = useState<Set<Guest>>(new Set());
 
@@ -26,29 +26,24 @@ export default function ChooseParty({ queue }: { queue: Queue }) {
   }, [queue, vq, loadData]);
 
   function toggleGuest(guest: Guest) {
-    const newParty = new Set(party);
-    newParty[newParty.has(guest) ? 'delete' : 'add'](guest);
-    const { maxPartySize } = queue;
-    if (maxPartySize > 0 && newParty.size > maxPartySize) {
-      flash(`Maximum party size: ${maxPartySize}`);
-    } else {
-      setParty(newParty);
-      flash('');
-    }
+    party[party.has(guest) ? 'delete' : 'add'](guest);
+    setParty(new Set(party));
   }
 
   return (
     <QueueScreen queue={queue} title="Choose Your Party">
-      {queue.howToEnterMessage.split('\n\n').map((graf, i) => (
-        <p key={i}>{graf}</p>
-      ))}
-      <h3>Choose Your Party</h3>
+      <p>
+        Select everyone in your party who would like to experience this
+        attraction, and tap the <b>Confirm Party</b> button.
+      </p>
+      <h3>Your Party</h3>
       {guests.length > 0 ? (
         <GuestList
           guests={guests}
           selectable={{
             isSelected: g => party.has(g),
             onToggle: toggleGuest,
+            limit: queue.maxPartySize,
           }}
         />
       ) : (

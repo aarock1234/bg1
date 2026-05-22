@@ -1,9 +1,12 @@
+import { use } from 'react';
+
 import { Guest, Queue } from '@/api/vq';
 import FloatingButton from '@/components/FloatingButton';
 import GuestList from '@/components/GuestList';
 import TimeBoard from '@/components/TimeBoard';
-import { useNav } from '@/contexts/Nav';
-import { useResort } from '@/contexts/Resort';
+import ClientsContext from '@/contexts/ClientsContext';
+import NavContext from '@/contexts/NavContext';
+import ResortContext from '@/contexts/ResortContext';
 import useDataLoader from '@/hooks/useDataLoader';
 import { ping } from '@/ping';
 
@@ -17,9 +20,9 @@ export default function JoinQueue({
   queue: Queue;
   guests: Guest[];
 }) {
-  const { goTo } = useNav();
-  const resort = useResort();
-  const { vq } = resort;
+  const { goTo } = use(NavContext);
+  const resort = use(ResortContext);
+  const { vq } = use(ClientsContext);
   const { loadData, loaderElem } = useDataLoader();
 
   async function joinQueue() {
@@ -45,19 +48,21 @@ export default function JoinQueue({
 
   return (
     <QueueScreen queue={queue} title="Virtual Queue">
-      {!queue.isAcceptingJoins && (
-        <TimeBoard
-          time={queue.nextScheduledOpenTime}
-          label="Next queue opening"
-        />
-      )}
-      {!queue.isAcceptingJoins && queue.nextScheduledOpenTime !== null && (
-        <p>
-          Tap the <b>Join Virtual Queue</b> button when the clock reads{' '}
-          <time className="font-semibold">{queue.nextScheduledOpenTime}</time>.
-          The queue can fill up almost instantly, so be quick!
-        </p>
-      )}
+      {queue.isAcceptingJoins ? (
+        <p>The virtual queue is open. Join now!</p>
+      ) : queue.nextScheduledOpenTime ? (
+        <>
+          <TimeBoard
+            time={queue.nextScheduledOpenTime}
+            label="Next queue opening"
+          />
+          <p>
+            Tap the <b>Join Virtual Queue</b> button when the clock reads{' '}
+            <time className="font-semibold">{queue.nextScheduledOpenTime}</time>
+            . The queue can fill up almost instantly, so be quick!
+          </p>
+        </>
+      ) : null}
       <h3>Your Party</h3>
       <GuestList guests={guests} />
       <FloatingButton onClick={joinQueue}>Join Virtual Queue</FloatingButton>

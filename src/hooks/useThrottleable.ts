@@ -1,15 +1,15 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useLayoutEffect, useState } from 'react';
 
 export default function useThrottleable(callback: () => void) {
-  const [, setLastCalled] = useState(0);
-  return useCallback(
-    (timeSinceLastCallMS = 0) => {
-      setLastCalled(lastCall => {
-        if (Date.now() - lastCall < timeSinceLastCallMS) return lastCall;
-        callback();
-        return Date.now();
-      });
-    },
-    [callback]
-  );
+  const [lastCalled, setLastCalled] = useState(0);
+
+  useLayoutEffect(() => {
+    if (lastCalled > 0) callback();
+  }, [lastCalled, callback]);
+
+  return useCallback((timeSinceLastCallMS = 0) => {
+    setLastCalled(lastCall =>
+      Date.now() - lastCall < timeSinceLastCallMS ? lastCall : Date.now()
+    );
+  }, []);
 }

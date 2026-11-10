@@ -19,15 +19,10 @@ export const LogLevel = {
 
 export type LogLevel = (typeof LogLevel)[keyof typeof LogLevel];
 
-const MIN_API_SECRET_LENGTH = 32;
-
 const envSchema = z.object({
   NODE_ENV: z.enum(Object.values(NodeEnv)).default(NodeEnv.DEVELOPMENT),
   LOG_LEVEL: z.enum(Object.values(LogLevel)).default(LogLevel.INFO),
   PORT: z.coerce.number().int().positive().default(8080),
-
-  // The secret the app must present to use the API.
-  API_SECRET: z.string().min(MIN_API_SECRET_LENGTH),
 
   // Proxies for requests to Disney, as `host:port:username:password`, one per
   // line or separated by commas. Without any, requests go out directly.

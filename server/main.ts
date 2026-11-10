@@ -10,7 +10,6 @@ function main(): void {
   const server = serve(
     {
       fetch: createApp({
-        apiSecret: env.API_SECRET,
         proxyUrls: env.DISNEY_PROXIES,
       }).fetch,
       port: env.PORT,

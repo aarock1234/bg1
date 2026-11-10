@@ -8,26 +8,29 @@
     />
     <meta name="theme-color" content="#0a0a0a" />
     <meta name="robots" content="noindex" />
-    <title>BG1 Server</title>
-    <link rel="icon" href="/icon.png" />
+    <title>BG1 server check</title>
+    <link rel="icon" href="/icon.svg" />
     <link rel="stylesheet" href="/site.css" />
   </head>
 
   <body>
-    <header class="topbar">
-      <a class="brand" href="/">
-        <img src="/icon.png" alt="" width="28" height="28" />
-        BG1
-      </a>
-      <span class="status">Server</span>
+    <header class="hero">
+      <h1>Server check</h1>
+      <p>
+        Finds out whether BG1's server can reach Disney for you, which is what
+        booking without your phone open depends on.
+      </p>
     </header>
 
     <main>
-      <section aria-labelledby="check-title">
-        <h2 id="check-title">Connection check</h2>
+      <section>
         <div id="server-check"></div>
       </section>
     </main>
+
+    <footer>
+      <p><a href="/">Back to BG1</a></p>
+    </footer>
 
     <script type="module" src="/bg1/home.js"></script>
   </body>

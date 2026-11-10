@@ -3,10 +3,11 @@ import { type Context, Hono } from 'hono';
 import { cors } from 'hono/cors';
 
 import { ApiClient } from '@/api/client';
+import { HOSTS } from '@/config';
 
 import { logger } from '../log';
 import { probe, probeRequestSchema } from '../probe/probe';
-import { requireSecret } from './require-secret';
+import { rateLimit } from './rate-limit';
 import { SHORT_LINKS } from './short-links';
 
 // The built app, relative to the directory the server is started from.
@@ -19,8 +20,14 @@ const SITE_DIRECTORY = './site';
 // which the built files use to find each other.
 const APP_PATH = '/bg1';
 
+// How often one visitor may call the API. Each probe makes several requests to
+// Disney, so the allowance is small.
+const API_RATE_LIMIT = {
+  limit: 20,
+  windowMs: 60_000,
+};
+
 type AppOptions = {
-  apiSecret: string;
   proxyUrls: string[];
 };
 
@@ -49,13 +56,15 @@ async function readJson(context: Context): Promise<unknown> {
 function createApi(options: AppOptions): Hono {
   const api = new Hono();
 
-  // The app calls the API from the Disney pages it runs on.
+  // The API is open: a caller proves who they are with their own Disney
+  // login. Browsers may call it from BG1's site and from the Disney pages the
+  // app runs on.
   api.use(
     cors({
-      origin: ApiClient.allOrigins,
+      origin: [HOSTS.HOME, ...ApiClient.allOrigins],
     })
   );
-  api.use(requireSecret(options.apiSecret));
+  api.use(rateLimit(API_RATE_LIMIT));
 
   api.post('/probe', async context => {
     const request = probeRequestSchema.safeParse(await readJson(context));

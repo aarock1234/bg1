@@ -9,54 +9,45 @@
     <meta name="theme-color" content="#0a0a0a" />
     <meta name="apple-mobile-web-app-title" content="BG1" />
     <title>BG1</title>
-    <link rel="icon" href="/icon.png" />
+    <link rel="icon" href="/icon.svg" />
     <link rel="apple-touch-icon" href="/icon.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="stylesheet" href="/site.css" />
   </head>
 
   <body>
-    <header class="topbar">
-      <a class="brand" href="/">
-        <img src="/icon.png" alt="" width="28" height="28" />
-        BG1
-      </a>
-      <span class="status status-missing">Not set up</span>
-      <span class="status status-ready">Ready</span>
+    <header class="hero">
+      <h1>Lightning Lanes and virtual queues, from your browser.</h1>
+      <p>
+        BG1 books Disney Lightning Lanes and joins virtual queues without the
+        official app.
+      </p>
     </header>
 
     <main>
       <section aria-labelledby="wdw-title">
         <h2 id="wdw-title">Walt Disney World</h2>
         <div class="list">
-          <a class="row" href="/wdw">
-            <span class="dot dot-wdw"></span>
-            Lightning Lane
-          </a>
-          <a class="row" href="/wdw/vq">
-            <span class="dot dot-wdw"></span>
-            Virtual Queue
-          </a>
+          <a class="row" href="/wdw">Lightning Lane</a>
+          <a class="row" href="/wdw/vq">Virtual Queue</a>
         </div>
       </section>
 
       <section aria-labelledby="dlr-title">
         <h2 id="dlr-title">Disneyland</h2>
         <div class="list">
-          <a class="row" href="/dlr">
-            <span class="dot dot-dlr"></span>
-            Lightning Lane
-          </a>
-          <a class="row" href="/dlr/vq">
-            <span class="dot dot-dlr"></span>
-            Virtual Queue
-          </a>
+          <a class="row" href="/dlr">Lightning Lane</a>
+          <a class="row" href="/dlr/vq">Virtual Queue</a>
         </div>
       </section>
 
       <section class="setup" aria-labelledby="setup-title">
         <div class="section-heading">
-          <h2 id="setup-title">Setup</h2>
+          <h2 id="setup-title">
+            Setup
+            <span class="status status-missing">Not done</span>
+            <span class="status status-ready">Done</span>
+          </h2>
           <label class="platform">
             <span class="visually-hidden">Your device</span>
             <select id="platform">

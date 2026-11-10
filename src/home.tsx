@@ -1,7 +1,6 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 
-import { serverSecret } from './api/bg1-server';
 import ServerCheck from './components/home/ServerCheck';
 
 // The element on BG1's server page (site/server.html) that this script fills
@@ -9,8 +8,6 @@ import ServerCheck from './components/home/ServerCheck';
 const ROOT_ID = 'server-check';
 
 const rootElement = document.getElementById(ROOT_ID);
-
-serverSecret.acceptConnectionLink();
 
 if (rootElement) {
   createRoot(rootElement).render(

@@ -1,12 +1,7 @@
-import { FormEvent, useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 import { AuthData, ReauthNeeded, authStore } from '@/api/auth';
-import {
-  ProbeReport,
-  ServerRequestFailed,
-  runProbe,
-  serverSecret,
-} from '@/api/bg1-server';
+import { ProbeReport, ServerRequestFailed, runProbe } from '@/api/bg1-server';
 import { RESORT_IDS, ResortId } from '@/api/resort';
 import LoginForm from '@/components/LoginForm';
 import kvdb from '@/kvdb';
@@ -15,7 +10,7 @@ import kvdb from '@/kvdb';
 const LOGIN_RESORT_KEY = 'bg1.home.loginResort';
 
 const MINUTES_PER_HOUR = 60;
-const STATUS_UNAUTHORIZED = 401;
+const STATUS_TOO_MANY_REQUESTS = 429;
 
 const RESORT_NAMES: Record<ResortId, string> = {
   WDW: 'Walt Disney World',
@@ -41,10 +36,6 @@ type CheckState =
       kind: 'failed';
       message: string;
     };
-
-type SecretFormProps = {
-  onSave: (secret: string) => void;
-};
 
 type ReportProps = {
   report: ProbeReport;
@@ -77,8 +68,8 @@ function failureMessage(error: unknown): string {
     return 'Something unexpected went wrong.';
   }
 
-  if (error.status === STATUS_UNAUTHORIZED) {
-    return "The server didn't accept that secret.";
+  if (error.status === STATUS_TOO_MANY_REQUESTS) {
+    return 'Too many checks in a row. Wait a minute and try again.';
   }
 
   return `The server couldn't be reached (status ${error.status}).`;
@@ -90,39 +81,6 @@ function formatMinutes(minutes: number): string {
   }
 
   return `${Math.round(minutes / MINUTES_PER_HOUR)} hours`;
-}
-
-function SecretForm({ onSave }: SecretFormProps) {
-  const [secret, setSecret] = useState('');
-
-  function save(event: FormEvent): void {
-    event.preventDefault();
-
-    if (secret.trim() !== '') {
-      onSave(secret);
-    }
-  }
-
-  return (
-    <form className="secret-form" onSubmit={save}>
-      <p>
-        This device isn't connected to the server yet. Open your connection link
-        on it, or paste the server secret.
-      </p>
-      <input
-        type="password"
-        className="field"
-        value={secret}
-        onChange={event => setSecret(event.currentTarget.value)}
-        placeholder="Server secret"
-        aria-label="Server secret"
-        autoComplete="off"
-      />
-      <button type="submit" className="button button-wide">
-        Connect
-      </button>
-    </form>
-  );
 }
 
 function Report({ report }: ReportProps) {
@@ -153,40 +111,32 @@ function Report({ report }: ReportProps) {
 // Signs in to Disney from BG1's own site and asks the BG1 server whether
 // Disney accepts its requests with that login.
 export default function ServerCheck() {
-  const [secret, setSecret] = useState(serverSecret.get);
   const [check, setCheck] = useState(IDLE);
   const signingInResortId =
     check.kind === 'signing-in' ? check.resortId : undefined;
 
-  const runCheck = useCallback(
-    async (resortId: ResortId, login: AuthData) => {
-      if (!secret) {
-        return;
-      }
+  const runCheck = useCallback(async (resortId: ResortId, login: AuthData) => {
+    setCheck({
+      kind: 'running',
+    });
 
-      setCheck({
-        kind: 'running',
+    try {
+      const report = await runProbe({
+        resortId,
+        login,
       });
 
-      try {
-        const report = await runProbe(secret, {
-          resortId,
-          login,
-        });
-
-        setCheck({
-          kind: 'done',
-          report,
-        });
-      } catch (error) {
-        setCheck({
-          kind: 'failed',
-          message: failureMessage(error),
-        });
-      }
-    },
-    [secret]
-  );
+      setCheck({
+        kind: 'done',
+        report,
+      });
+    } catch (error) {
+      setCheck({
+        kind: 'failed',
+        message: failureMessage(error),
+      });
+    }
+  }, []);
 
   const finishSignIn = useCallback(
     (login: AuthData) => {
@@ -211,17 +161,6 @@ export default function ServerCheck() {
     };
   }, [signingInResortId]);
 
-  function saveSecret(newSecret: string): void {
-    serverSecret.set(newSecret);
-    setSecret(serverSecret.get());
-  }
-
-  function forgetSecret(): void {
-    serverSecret.clear();
-    setSecret(undefined);
-    setCheck(IDLE);
-  }
-
   function startCheck(resortId: ResortId): void {
     const login = storedLogin(resortId);
 
@@ -236,16 +175,9 @@ export default function ServerCheck() {
     });
   }
 
-  if (!secret) {
-    return <SecretForm onSave={saveSecret} />;
-  }
-
   return (
     <>
-      <p>
-        Pick a resort and sign in to Disney. The server then tries to reach
-        Disney with your login and shows what worked.
-      </p>
+      <p>Pick your resort and sign in to Disney.</p>
       <div className="button-pair">
         {RESORT_IDS.map(resortId => (
           <button
@@ -265,9 +197,6 @@ export default function ServerCheck() {
       {signingInResort && (
         <LoginForm resort={signingInResort} onLogin={finishSignIn} />
       )}
-      <button type="button" className="link-button" onClick={forgetSecret}>
-        Disconnect this device
-      </button>
     </>
   );
 }

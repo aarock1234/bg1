@@ -3,8 +3,6 @@ import type { LLClient, LLClientOptions } from '@/api/ll';
 import { createLLClient } from '@/api/ll/create';
 import { type Resort, type ResortId, loadResort } from '@/api/resort';
 
-import { serverSensorData } from './sensor-data';
-
 // The browser app remembers which experiences a guest has used so it can mark
 // them in its list. The server has no list to mark.
 const NO_TRACKING: NonNullable<LLClientOptions['tracker']> = {
@@ -41,7 +39,6 @@ export async function llClientFor(
   options: ServerClientOptions = {}
 ): Promise<LLClient> {
   return createLLClient(await resortFor(resortId), {
-    sensorData: serverSensorData,
     ...options,
     auth,
     tracker: NO_TRACKING,

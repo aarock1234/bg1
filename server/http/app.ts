@@ -4,11 +4,11 @@ import { cors } from 'hono/cors';
 import { readFile } from 'node:fs/promises';
 
 import { ApiClient } from '@/api/client';
+import { fetchTokenFromService } from '@/api/sensor-data';
 import { HOSTS } from '@/config';
 import { WEB_ROUTE_PATHS } from '@/web-route';
 
 import { describeError } from '../describe-error';
-import { serverSensorToken } from '../disney/sensor-data';
 import { createJobRoutes } from '../jobs/routes';
 import type { Worker } from '../jobs/worker';
 import { logger } from '../log';
@@ -79,7 +79,7 @@ function createApi(options: AppOptions): Hono {
   );
 
   api.post('/sensor-data', async context => {
-    return context.text(await serverSensorToken());
+    return context.text(await fetchTokenFromService());
   });
 
   api.post('/probe', async context => {

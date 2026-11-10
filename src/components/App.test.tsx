@@ -103,9 +103,7 @@ describe('App', () => {
     self.origin = 'https://example.com';
     renderComponent();
     await waitFor(() => {
-      expect(navigate).toHaveBeenCalledWith(
-        'https://joelface.github.io/bg1/start.html'
-      );
+      expect(navigate).toHaveBeenCalledWith('https://bg1.abdels.dev/');
     });
   });
 });

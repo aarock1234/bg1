@@ -1,25 +1,30 @@
 // ==UserScript==
 // @name         BG1 Autoloader
-// @namespace    https://bg1-production.up.railway.app/bg1/
-// @version      0.5
+// @namespace    https://bg1.abdels.dev/
+// @version      0.6
 // @description  Automatically loads the BG1 interface
 // @author       aarock1234
-// @match        https://joelface.github.io/bg1/start.html
+// @match        https://bg1.abdels.dev/
 // @match        https://disneyworld.disney.go.com/vas/
 // @match        https://disneyworld.disney.go.com/*/vas/
 // @match        https://disneyland.disney.go.com/vas/
 // @match        https://disneyland.disney.go.com/*/vas/
 // @match        https://vqguest-svc-wdw.wdprapps.disney.com/application/v1/guest/getQueues
 // @match        https://vqguest-svc.wdprapps.disney.com/application/v1/guest/getQueues
+// @downloadURL  https://bg1.abdels.dev/autoloader.user.js
+// @updateURL    https://bg1.abdels.dev/autoloader.user.js
 // @grant        none
 // ==/UserScript==
 'use strict';
 
-// Where the built app (bg1.js and bg1.css) is hosted.
-const APP_URL = 'https://bg1-production.up.railway.app/bg1/';
+// BG1's own site: its home page, and the built app under /bg1/.
+const HOME_URL = 'https://bg1.abdels.dev/';
+const APP_URL = `${HOME_URL}bg1/`;
 
-// The start page that links to the Disney pages BG1 takes over.
-const START_PAGE_URL = 'https://joelface.github.io/bg1/start.html';
+// Lets the home page show that the script is installed and working.
+function markInstalled() {
+  document.documentElement.classList.add('bg1-installed');
+}
 
 function replacePageWithApp() {
   document.open();
@@ -33,8 +38,8 @@ function replacePageWithApp() {
   document.head.appendChild(script);
 }
 
-if (window.location.href === START_PAGE_URL) {
-  document.body.classList.add('autoload');
+if (window.location.href === HOME_URL) {
+  markInstalled();
 } else {
   replacePageWithApp();
 }

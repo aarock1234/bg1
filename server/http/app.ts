@@ -7,9 +7,13 @@ import { ApiClient } from '@/api/client';
 import { logger } from '../log';
 import { probe, probeRequestSchema } from '../probe/probe';
 import { requireSecret } from './require-secret';
+import { SHORT_LINKS } from './short-links';
 
 // The built app, relative to the directory the server is started from.
 const APP_BUILD_DIRECTORY = './dist';
+
+// BG1's own pages: the home page with setup steps, and the autoloader script.
+const SITE_DIRECTORY = './site';
 
 // The path the app is served under. It has to match `base` in vite.config.mts,
 // which the built files use to find each other.
@@ -98,6 +102,20 @@ export function createApp(options: AppOptions): Hono {
       rewriteRequestPath: path => path.slice(APP_PATH.length),
       onFound: (_path, context) => {
         allowAnyOrigin(context.res.headers);
+        revalidateOnEveryLoad(context.res.headers);
+      },
+    })
+  );
+
+  for (const [path, destination] of Object.entries(SHORT_LINKS)) {
+    app.get(path, context => context.redirect(destination));
+  }
+
+  app.use(
+    '/*',
+    serveStatic({
+      root: SITE_DIRECTORY,
+      onFound: (_path, context) => {
         revalidateOnEveryLoad(context.res.headers);
       },
     })

@@ -73,6 +73,10 @@ export abstract class ApiClient {
     return Object.values(this.origins);
   }
 
+  static originFor(resortId: ResortId): string {
+    return this.origins[resortId];
+  }
+
   static originToResortId(origin: string): ResortId {
     const resortId = RESORT_IDS.find(id => this.origins[id] === origin);
 

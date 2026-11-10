@@ -1,0 +1,241 @@
+:root {
+  --night: #12142b;
+  --night-raised: #1c2044;
+  --line: #ffffff1f;
+  --text: #f2f3ff;
+  --text-soft: #b4b8dc;
+  --accent: #ff5fa2;
+  --wdw: #7c5cff;
+  --dlr: #ff8a3d;
+  --ready: #4ade80;
+  --radius: 22px;
+
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  padding: env(safe-area-inset-top) 18px
+    calc(32px + env(safe-area-inset-bottom));
+  background:
+    radial-gradient(120% 60% at 50% -10%, #3b2a7a 0%, transparent 70%),
+    var(--night);
+  color: var(--text);
+  font:
+    17px/1.5 system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
+  -webkit-text-size-adjust: 100%;
+}
+
+main,
+footer,
+.hero {
+  max-width: 520px;
+  margin-inline: auto;
+}
+
+a {
+  color: inherit;
+}
+
+.hero {
+  padding: 44px 0 28px;
+  text-align: center;
+}
+
+.hero-icon {
+  border-radius: 18px;
+  box-shadow: 0 12px 32px #0008;
+}
+
+.hero h1 {
+  margin: 16px 0 4px;
+  font-size: 2.4rem;
+  letter-spacing: -0.02em;
+}
+
+.hero p {
+  margin: 0;
+  color: var(--text-soft);
+}
+
+.card {
+  margin-bottom: 18px;
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--night-raised);
+}
+
+.card p {
+  margin: 0 0 16px;
+  color: var(--text-soft);
+}
+
+.card-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+h2 {
+  margin: 0;
+  font-size: 1.3rem;
+}
+
+h3 {
+  margin: 18px 0 10px;
+  color: var(--text-soft);
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.status {
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.status-missing {
+  background: #ffffff14;
+  color: var(--text-soft);
+}
+
+.status-ready {
+  background: #4ade8026;
+  color: var(--ready);
+}
+
+/* The autoloader script adds `bg1-installed` to the page when it runs here. */
+.status-ready,
+.bg1-installed .status-missing,
+.bg1-installed .hint-missing {
+  display: none;
+}
+
+.bg1-installed .status-ready {
+  display: inline-block;
+}
+
+.buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 54px;
+  padding: 10px 14px;
+  border-radius: 16px;
+  color: #fff;
+  font-weight: 650;
+  text-align: center;
+  text-decoration: none;
+  transition: transform 0.1s ease;
+}
+
+.button:active {
+  transform: scale(0.97);
+}
+
+.park-wdw {
+  background: var(--wdw);
+}
+
+.park-dlr {
+  background: var(--dlr);
+}
+
+.button-quiet {
+  border: 1px solid var(--line);
+  background: #ffffff0f;
+}
+
+.button-install {
+  margin-top: 6px;
+  background: linear-gradient(135deg, var(--accent), var(--wdw));
+}
+
+.tabs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  margin-bottom: 18px;
+  padding: 4px;
+  border-radius: 14px;
+  background: #0000003d;
+}
+
+.tabs button {
+  min-height: 42px;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  color: var(--text-soft);
+  font: inherit;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.tabs button[aria-selected='true'] {
+  background: #ffffff1f;
+  color: var(--text);
+}
+
+.steps {
+  margin: 0 0 18px;
+  padding: 0;
+  list-style: none;
+  counter-reset: step;
+}
+
+.steps li {
+  position: relative;
+  margin-bottom: 16px;
+  padding-left: 46px;
+  color: var(--text-soft);
+  counter-increment: step;
+}
+
+.steps li::before {
+  content: counter(step);
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #ffffff1a;
+  color: var(--text);
+  font-weight: 700;
+}
+
+.steps strong {
+  display: block;
+  color: var(--text);
+}
+
+footer {
+  padding: 10px 6px 0;
+  color: var(--text-soft);
+  font-size: 0.82rem;
+  text-align: center;
+}

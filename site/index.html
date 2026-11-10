@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="en-US">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#12142b" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="BG1" />
+    <meta
+      name="apple-mobile-web-app-status-bar-style"
+      content="black-translucent"
+    />
+    <title>BG1</title>
+    <link rel="icon" href="/icon.png" />
+    <link rel="apple-touch-icon" href="/icon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="stylesheet" href="/site.css" />
+  </head>
+
+  <body>
+    <header class="hero">
+      <img class="hero-icon" src="/icon.png" alt="" width="72" height="72" />
+      <h1>BG1</h1>
+      <p>Lightning Lanes and virtual queues, without the official app.</p>
+    </header>
+
+    <main>
+      <section class="card" aria-labelledby="open-title">
+        <div class="card-heading">
+          <h2 id="open-title">Open BG1</h2>
+          <span class="status status-missing">Script not found</span>
+          <span class="status status-ready">Ready</span>
+        </div>
+
+        <p class="hint hint-missing">
+          These buttons only work after the one-time setup below.
+        </p>
+
+        <h3>Walt Disney World</h3>
+        <div class="buttons">
+          <a class="button park-wdw" href="/wdw">Lightning Lane</a>
+          <a class="button button-quiet" href="/wdw/vq">Virtual Queue</a>
+        </div>
+
+        <h3>Disneyland</h3>
+        <div class="buttons">
+          <a class="button park-dlr" href="/dlr">Lightning Lane</a>
+          <a class="button button-quiet" href="/dlr/vq">Virtual Queue</a>
+        </div>
+      </section>
+
+      <section class="card" aria-labelledby="setup-title">
+        <div class="card-heading">
+          <h2 id="setup-title">Set up once</h2>
+        </div>
+
+        <p>
+          BG1 runs inside Disney's own pages. A small script loads it there for
+          you. Pick your device:
+        </p>
+
+        <div class="tabs" role="tablist" aria-label="Your device">
+          <button
+            role="tab"
+            id="tab-iphone"
+            aria-controls="panel-iphone"
+            data-platform="iphone"
+          >
+            iPhone
+          </button>
+          <button
+            role="tab"
+            id="tab-android"
+            aria-controls="panel-android"
+            data-platform="android"
+          >
+            Android
+          </button>
+          <button
+            role="tab"
+            id="tab-computer"
+            aria-controls="panel-computer"
+            data-platform="computer"
+          >
+            Computer
+          </button>
+        </div>
+
+        <div
+          class="panel"
+          role="tabpanel"
+          id="panel-iphone"
+          aria-labelledby="tab-iphone"
+        >
+          <ol class="steps">
+            <li>
+              <strong>Get the Userscripts app.</strong>
+              Install
+              <a href="https://apps.apple.com/us/app/userscripts/id1463298887"
+                >Userscripts</a
+              >
+              from the App Store and open it once.
+            </li>
+            <li>
+              <strong>Turn it on for Safari.</strong>
+              In Settings, go to Apps → Safari → Extensions → Userscripts.
+              Switch on Allow Extension, and set Other Websites to Allow.
+            </li>
+            <li>
+              <strong>Install the BG1 script.</strong>
+              Close Safari and open it again, then tap the button below. On the
+              page that opens, tap the puzzle piece in the address bar, choose
+              Userscripts, tap “Tap to install”, and then Install.
+            </li>
+            <li>
+              <strong>Come back here.</strong>
+              The badge at the top turns to Ready. Open a park and sign in.
+            </li>
+          </ol>
+          <a
+            class="button button-install"
+            href="/install"
+            target="_blank"
+            rel="noopener"
+          >
+            Install the BG1 script
+          </a>
+        </div>
+
+        <div
+          class="panel"
+          role="tabpanel"
+          id="panel-android"
+          aria-labelledby="tab-android"
+          hidden
+        >
+          <ol class="steps">
+            <li>
+              <strong>Use Firefox.</strong>
+              Install
+              <a
+                href="https://play.google.com/store/apps/details?id=org.mozilla.firefox"
+                >Firefox</a
+              >
+              and open this page in it.
+            </li>
+            <li>
+              <strong>Add Tampermonkey.</strong>
+              Open the
+              <a
+                href="https://addons.mozilla.org/en-US/android/addon/tampermonkey/"
+                >Tampermonkey add-on page</a
+              >
+              and tap Add to Firefox.
+            </li>
+            <li>
+              <strong>Install the BG1 script.</strong>
+              Tap the button below and confirm when Tampermonkey asks.
+            </li>
+            <li>
+              <strong>Come back here.</strong>
+              The badge at the top turns to Ready. Open a park and sign in.
+            </li>
+          </ol>
+          <a
+            class="button button-install"
+            href="/install"
+            target="_blank"
+            rel="noopener"
+          >
+            Install the BG1 script
+          </a>
+        </div>
+
+        <div
+          class="panel"
+          role="tabpanel"
+          id="panel-computer"
+          aria-labelledby="tab-computer"
+          hidden
+        >
+          <ol class="steps">
+            <li>
+              <strong>Add Tampermonkey.</strong>
+              Install the
+              <a href="https://www.tampermonkey.net/">Tampermonkey</a>
+              extension in Chrome, Edge, or Firefox.
+            </li>
+            <li>
+              <strong>Install the BG1 script.</strong>
+              Click the button below and confirm when Tampermonkey asks.
+            </li>
+            <li>
+              <strong>Come back here.</strong>
+              The badge at the top turns to Ready. Open a park and sign in.
+            </li>
+          </ol>
+          <a
+            class="button button-install"
+            href="/install"
+            target="_blank"
+            rel="noopener"
+          >
+            Install the BG1 script
+          </a>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <p>
+        BG1 is unofficial and experimental. It is not endorsed by or associated
+        with the Walt Disney Company and could stop working at any time.
+      </p>
+      <p><a href="https://github.com/aarock1234/bg1">Source on GitHub</a></p>
+    </footer>
+
+    <script src="/site.js"></script>
+  </body>
+</html>

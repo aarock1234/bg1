@@ -1,0 +1,16 @@
+{
+  "name": "BG1",
+  "short_name": "BG1",
+  "description": "Unofficial Lightning Lane and virtual queue client",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#12142b",
+  "theme_color": "#12142b",
+  "icons": [
+    {
+      "src": "/icon.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ]
+}

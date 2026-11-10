@@ -5,7 +5,7 @@ import { InvalidOrigin } from '@/api/client';
 import { LLClient } from '@/api/ll';
 import { RESORT_TIME_ZONES, Resort, loadResort } from '@/api/resort';
 import { VQClient } from '@/api/vq';
-import { siteUrl } from '@/config';
+import { HOME_URL } from '@/config';
 import ClientsContext, {
   Clients,
   createClients,
@@ -114,7 +114,7 @@ export default function App() {
       }
 
       if (!loadedApp) {
-        navigate(siteUrl('start.html'));
+        navigate(HOME_URL);
         return;
       }
 

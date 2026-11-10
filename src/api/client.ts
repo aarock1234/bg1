@@ -5,8 +5,29 @@ import { Auth, authStore } from './auth';
 import { RESORT_IDS, Resort, ResortId } from './resort';
 import { type SensorDataSource, sensorData } from './sensor-data';
 
-// The version of the official Disney app that BG1 identifies itself as.
-export const APP_VERSION = '8.23.3';
+// The version of the official Disney app that BG1 identifies itself as, and
+// that app's build number and network stack, as the app itself sends them.
+// Disney refuses offers to app versions it no longer supports.
+export const APP_VERSION = '8.26.1';
+const APP_BUILD = '20261028.2';
+const APP_NETWORK_STACK = 'CFNetwork/3896.200.61 Darwin/27.2.0';
+const APP_CLIENT_ID = 'EA_IOS_UI';
+
+// The headers the official app identifies itself with on protected requests.
+// Browsers may leave out User-Agent, in which case BG1's server adds it when
+// it relays the request.
+export function appIdentityHeaders(resortId: ResortId): Record<string, string> {
+  return {
+    'x-app-id': `${resortId}-IOS-${APP_VERSION}`,
+    'x-client-id': APP_CLIENT_ID,
+    'x-client-version': APP_VERSION,
+    'User-Agent': appUserAgent(resortId),
+  };
+}
+
+export function appUserAgent(resortId: ResortId): string {
+  return `${resortId}/${APP_BUILD} ${APP_NETWORK_STACK}`;
+}
 
 const REQUESTS_PER_SECOND = 5;
 
@@ -148,7 +169,7 @@ export abstract class ApiClient {
   protected async sensorDataHeaders(): Promise<Record<string, string>> {
     return {
       'x-acf-sensor-data': await this.sensorData.get(),
-      'x-app-id': `${this.resort.id}-IOS-${APP_VERSION}`,
+      ...appIdentityHeaders(this.resort.id),
     };
   }
 

@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 
-import { ApiClient } from '@/api/client';
+import { ApiClient, appUserAgent } from '@/api/client';
+import { RESORT_IDS, type ResortId } from '@/api/resort';
 import { VQClient } from '@/api/vq';
 
 import { describeError } from '../describe-error';
@@ -19,8 +20,18 @@ const FORWARDED_HEADERS = [
   'x-user-id',
   'x-acf-sensor-data',
   'x-app-id',
+  'x-client-id',
+  'x-client-version',
   'x-vq-guest-app-version',
 ];
+
+// Reads which resort's app a request identifies as, from an x-app-id such as
+// DLR-IOS-8.26.1.
+function appResortId(headers: Headers): ResortId | undefined {
+  const [resortId] = (headers.get('x-app-id') ?? '').split('-');
+
+  return RESORT_IDS.find(id => id === resortId);
+}
 
 // The only hosts the relay will talk to: the Disney services BG1's clients
 // use.
@@ -69,6 +80,14 @@ function forwardedHeaders(incoming: Headers): Headers {
     if (value !== null) {
       headers.set(name, value);
     }
+  }
+
+  // Browsers won't send the official app's User-Agent, so a request that
+  // identifies as the app is given it here.
+  const resortId = appResortId(incoming);
+
+  if (resortId) {
+    headers.set('User-Agent', appUserAgent(resortId));
   }
 
   return headers;

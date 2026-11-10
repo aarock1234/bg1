@@ -21,6 +21,7 @@ const APP_PATH = '/bg1';
 
 type AppOptions = {
   apiSecret: string;
+  proxyUrls: string[];
 };
 
 // The autoloader fetches the app from Disney's pages as a module script, which
@@ -69,7 +70,9 @@ function createApi(options: AppOptions): Hono {
       );
     }
 
-    const report = await probe(request.data);
+    const report = await probe(request.data, {
+      proxyUrls: options.proxyUrls,
+    });
 
     logger.info(
       {

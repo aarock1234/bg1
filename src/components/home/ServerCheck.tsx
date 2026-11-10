@@ -1,0 +1,273 @@
+import { FormEvent, useCallback, useMemo, useState } from 'react';
+
+import { AuthData, ReauthNeeded, authStore } from '@/api/auth';
+import {
+  ProbeReport,
+  ServerRequestFailed,
+  runProbe,
+  serverSecret,
+} from '@/api/bg1-server';
+import { RESORT_IDS, ResortId } from '@/api/resort';
+import LoginForm from '@/components/LoginForm';
+import kvdb from '@/kvdb';
+
+// Which resort the stored Disney login was made for.
+const LOGIN_RESORT_KEY = 'bg1.home.loginResort';
+
+const MINUTES_PER_HOUR = 60;
+const STATUS_UNAUTHORIZED = 401;
+
+const RESORT_NAMES: Record<ResortId, string> = {
+  WDW: 'Walt Disney World',
+  DLR: 'Disneyland',
+};
+
+type CheckState =
+  | {
+      kind: 'idle';
+    }
+  | {
+      kind: 'signing-in';
+      resortId: ResortId;
+    }
+  | {
+      kind: 'running';
+    }
+  | {
+      kind: 'done';
+      report: ProbeReport;
+    }
+  | {
+      kind: 'failed';
+      message: string;
+    };
+
+type SecretFormProps = {
+  onSave: (secret: string) => void;
+};
+
+type ReportProps = {
+  report: ProbeReport;
+};
+
+const IDLE: CheckState = {
+  kind: 'idle',
+};
+
+// Returns the stored login when it is still usable and was made for the
+// resort.
+function storedLogin(resortId: ResortId): AuthData | undefined {
+  if (kvdb.get(LOGIN_RESORT_KEY) !== resortId) {
+    return undefined;
+  }
+
+  try {
+    return authStore.getLogin();
+  } catch (error) {
+    if (error instanceof ReauthNeeded) {
+      return undefined;
+    }
+
+    throw error;
+  }
+}
+
+function failureMessage(error: unknown): string {
+  if (!(error instanceof ServerRequestFailed)) {
+    return 'Something unexpected went wrong.';
+  }
+
+  if (error.status === STATUS_UNAUTHORIZED) {
+    return "The server didn't accept that secret.";
+  }
+
+  return `The server couldn't be reached (status ${error.status}).`;
+}
+
+function formatMinutes(minutes: number): string {
+  if (minutes < MINUTES_PER_HOUR) {
+    return `${minutes} minutes`;
+  }
+
+  return `${Math.round(minutes / MINUTES_PER_HOUR)} hours`;
+}
+
+function SecretForm({ onSave }: SecretFormProps) {
+  const [secret, setSecret] = useState('');
+
+  function save(event: FormEvent): void {
+    event.preventDefault();
+
+    if (secret.trim() !== '') {
+      onSave(secret);
+    }
+  }
+
+  return (
+    <form className="secret-form" onSubmit={save}>
+      <p>
+        Paste the server secret to connect this device. It is the
+        <code> API_SECRET </code>
+        variable of the bg1 service on Railway.
+      </p>
+      <input
+        type="password"
+        value={secret}
+        onChange={event => setSecret(event.currentTarget.value)}
+        placeholder="Server secret"
+        aria-label="Server secret"
+        autoComplete="off"
+      />
+      <button type="submit" className="button button-install">
+        Connect
+      </button>
+    </form>
+  );
+}
+
+function Report({ report }: ReportProps) {
+  const { checks, login } = report;
+
+  return (
+    <div className="report">
+      <ul className="checks">
+        {checks.map(check => (
+          <li key={check.name} className={check.ok ? 'check-ok' : 'check-bad'}>
+            <strong>{check.name}</strong>
+            {check.detail} ({check.durationMs} ms)
+          </li>
+        ))}
+      </ul>
+      <p>
+        Your Disney login lasts another {formatMinutes(login.expiresInMinutes)}
+        {login.hasRefreshToken
+          ? ' and can be renewed without signing in again.'
+          : ' and then needs a new sign-in.'}
+      </p>
+    </div>
+  );
+}
+
+// Signs in to Disney from BG1's own site and asks the BG1 server whether
+// Disney accepts its requests with that login.
+export default function ServerCheck() {
+  const [secret, setSecret] = useState(serverSecret.get);
+  const [check, setCheck] = useState(IDLE);
+  const signingInResortId =
+    check.kind === 'signing-in' ? check.resortId : undefined;
+
+  const runCheck = useCallback(
+    async (resortId: ResortId, login: AuthData) => {
+      if (!secret) {
+        return;
+      }
+
+      setCheck({
+        kind: 'running',
+      });
+
+      try {
+        const report = await runProbe(secret, {
+          resortId,
+          login,
+        });
+
+        setCheck({
+          kind: 'done',
+          report,
+        });
+      } catch (error) {
+        setCheck({
+          kind: 'failed',
+          message: failureMessage(error),
+        });
+      }
+    },
+    [secret]
+  );
+
+  const finishSignIn = useCallback(
+    (login: AuthData) => {
+      if (!signingInResortId) {
+        return;
+      }
+
+      authStore.setData(login);
+      kvdb.set(LOGIN_RESORT_KEY, signingInResortId);
+      runCheck(signingInResortId, login);
+    },
+    [signingInResortId, runCheck]
+  );
+
+  const signingInResort = useMemo(() => {
+    if (!signingInResortId) {
+      return undefined;
+    }
+
+    return {
+      id: signingInResortId,
+    };
+  }, [signingInResortId]);
+
+  function saveSecret(newSecret: string): void {
+    serverSecret.set(newSecret);
+    setSecret(serverSecret.get());
+  }
+
+  function forgetSecret(): void {
+    serverSecret.clear();
+    setSecret(undefined);
+    setCheck(IDLE);
+  }
+
+  function startCheck(resortId: ResortId): void {
+    const login = storedLogin(resortId);
+
+    if (login) {
+      runCheck(resortId, login);
+      return;
+    }
+
+    setCheck({
+      kind: 'signing-in',
+      resortId,
+    });
+  }
+
+  if (!secret) {
+    return <SecretForm onSave={saveSecret} />;
+  }
+
+  return (
+    <>
+      <p>
+        Sign in to Disney and check whether the BG1 server can reach Disney for
+        you.
+      </p>
+      <div className="buttons">
+        {RESORT_IDS.map(resortId => (
+          <button
+            key={resortId}
+            type="button"
+            className="button button-quiet"
+            disabled={check.kind === 'running'}
+            onClick={() => startCheck(resortId)}
+          >
+            {RESORT_NAMES[resortId]}
+          </button>
+        ))}
+      </div>
+      {check.kind === 'running' && <p role="status">Checking…</p>}
+      {check.kind === 'failed' && <p role="alert">{check.message}</p>}
+      {check.kind === 'done' && <Report report={check.report} />}
+      {signingInResort && (
+        <LoginForm resort={signingInResort} onLogin={finishSignIn} />
+      )}
+      <p>
+        <button type="button" className="link-button" onClick={forgetSecret}>
+          Disconnect this device
+        </button>
+      </p>
+    </>
+  );
+}

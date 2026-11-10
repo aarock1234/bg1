@@ -233,6 +233,95 @@ h3 {
   color: var(--text);
 }
 
+button.button {
+  width: 100%;
+  border: 0;
+  font: inherit;
+  font-weight: 650;
+}
+
+button.button-quiet {
+  border: 1px solid var(--line);
+}
+
+button.button:disabled {
+  opacity: 0.5;
+}
+
+.secret-form input {
+  width: 100%;
+  min-height: 54px;
+  margin-bottom: 10px;
+  padding: 10px 16px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #0000003d;
+  color: var(--text);
+  font: inherit;
+}
+
+#server-check .buttons {
+  margin-bottom: 16px;
+}
+
+.link-button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-soft);
+  font: inherit;
+  font-size: 0.85rem;
+  text-decoration: underline;
+}
+
+.report,
+[role='status'],
+[role='alert'] {
+  margin-top: 16px;
+}
+
+.checks {
+  margin: 0 0 16px;
+  padding: 0;
+  list-style: none;
+}
+
+.checks li {
+  position: relative;
+  margin-bottom: 12px;
+  padding-left: 30px;
+  color: var(--text-soft);
+}
+
+.checks li::before {
+  position: absolute;
+  left: 0;
+  font-weight: 700;
+}
+
+.checks strong {
+  display: block;
+  color: var(--text);
+  text-transform: capitalize;
+}
+
+.check-ok::before {
+  content: '✓';
+  color: var(--ready);
+}
+
+.check-bad::before {
+  content: '✕';
+  color: var(--accent);
+}
+
+code {
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: #0000003d;
+  font-size: 0.9em;
+}
+
 footer {
   padding: 10px 6px 0;
   color: var(--text-soft);

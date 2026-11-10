@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { parseProxies } from '../disney/proxies';
+
 export const NodeEnv = {
   DEVELOPMENT: 'development',
   PRODUCTION: 'production',
@@ -26,6 +28,10 @@ const envSchema = z.object({
 
   // The secret the app must present to use the API.
   API_SECRET: z.string().min(MIN_API_SECRET_LENGTH),
+
+  // Proxies for requests to Disney, as `host:port:username:password`, one per
+  // line or separated by commas. Without any, requests go out directly.
+  DISNEY_PROXIES: z.string().default('').transform(parseProxies),
 });
 
 export type Env = z.infer<typeof envSchema>;

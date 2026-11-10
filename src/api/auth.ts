@@ -69,13 +69,21 @@ export class AuthStore implements Auth {
   onUnauthorized: () => void = () => undefined;
 
   getData(): Credentials {
+    const { swid, accessToken } = this.getLogin();
+
+    return {
+      swid,
+      accessToken,
+    };
+  }
+
+  // Returns the whole stored login, including when it expires, for handing
+  // over to the BG1 server. Throws ReauthNeeded when there is no usable one.
+  getLogin(): AuthData {
     const stored = kvdb.get(AUTH_KEY);
 
     if (isAuthData(stored) && isStillUsable(stored.expires)) {
-      return {
-        swid: stored.swid,
-        accessToken: stored.accessToken,
-      };
+      return stored;
     }
 
     this.deleteData();

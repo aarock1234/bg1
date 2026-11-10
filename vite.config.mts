@@ -31,7 +31,12 @@ export default defineConfig({
     outDir: '../dist',
     emptyOutDir: false,
     rolldownOptions: {
-      input: ['src/bg1.tsx', 'src/bg1.css', 'src/responder.html'],
+      input: [
+        'src/bg1.tsx',
+        'src/bg1.css',
+        'src/home.tsx',
+        'src/responder.html',
+      ],
 
       // The autoloader and Disney's login page request these files by name,
       // so they can't carry content hashes.

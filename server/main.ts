@@ -11,6 +11,7 @@ function main(): void {
     {
       fetch: createApp({
         apiSecret: env.API_SECRET,
+        proxyUrls: env.DISNEY_PROXIES,
       }).fetch,
       port: env.PORT,
     },

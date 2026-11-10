@@ -7,6 +7,7 @@ import { DateTime, parkDate } from '@/datetime';
 
 import { llClientFor, resortFor } from '../disney/clients';
 import { type DisneyLogin, disneyLoginSchema } from '../disney/credentials';
+import { proxiedFetch } from '../disney/proxies';
 
 const MS_PER_MINUTE = 60_000;
 const JWT_PART_COUNT = 3;
@@ -36,6 +37,16 @@ type LoginLifetime = {
   // When the access token says it was issued and expires, if it is a JWT.
   tokenIssuedAt?: string;
   tokenExpiresAt?: string;
+};
+
+export type ProbeOptions = {
+  proxyUrls: string[];
+};
+
+// A way for requests to reach Disney.
+type Route = {
+  name: string;
+  fetch?: typeof fetch;
 };
 
 export type ProbeReport = {
@@ -135,18 +146,57 @@ async function runCheck(
   };
 }
 
-// Finds out whether Disney and the sensor data service accept requests from
-// wherever this server runs, using a guest's login.
-export async function probe(request: ProbeRequest): Promise<ProbeReport> {
+// Runs the Disney checks over one route: a request any logged-in guest can
+// make, and one that also needs the bot-protection token.
+async function disneyChecks(
+  request: ProbeRequest,
+  route: Route
+): Promise<ProbeCheck[]> {
   const { resortId, login } = request;
-  DateTime.setTimeZone(RESORT_TIME_ZONES[resortId]);
-
   const resort = await resortFor(resortId);
-  const ll = await llClientFor(resortId, login);
+  const ll = await llClientFor(resortId, login, {
+    fetch: route.fetch,
+  });
   const [park] = resort.parks;
 
   if (!park) {
     throw new Error(`resort ${resortId} has no parks`);
+  }
+
+  return [
+    await runCheck(`plain disney request, ${route.name}`, async () => {
+      const experiences = await ll.experiences(park, parkDate());
+
+      return `${experiences.length} experiences in ${park.name}`;
+    }),
+    await runCheck(`protected disney request, ${route.name}`, async () => {
+      const guests = await ll.guests();
+
+      return `${guests.eligible.length} eligible and ${guests.ineligible.length} ineligible guests`;
+    }),
+  ];
+}
+
+// Finds out whether Disney and the sensor data service accept requests from
+// wherever this server runs, using a guest's login. Disney is tried directly
+// and, when proxies are configured, through one of them.
+export async function probe(
+  request: ProbeRequest,
+  options: ProbeOptions
+): Promise<ProbeReport> {
+  DateTime.setTimeZone(RESORT_TIME_ZONES[request.resortId]);
+
+  const routes: Route[] = [
+    {
+      name: 'direct',
+    },
+  ];
+
+  if (options.proxyUrls.length > 0) {
+    routes.push({
+      name: 'through a proxy',
+      fetch: proxiedFetch(options.proxyUrls),
+    });
   }
 
   const checks = [
@@ -155,21 +205,15 @@ export async function probe(request: ProbeRequest): Promise<ProbeReport> {
 
       return `received a ${token.length}-character token`;
     }),
-    await runCheck('plain disney request', async () => {
-      const experiences = await ll.experiences(park, parkDate());
-
-      return `${experiences.length} experiences in ${park.name}`;
-    }),
-    await runCheck('protected disney request', async () => {
-      const guests = await ll.guests();
-
-      return `${guests.eligible.length} eligible and ${guests.ineligible.length} ineligible guests`;
-    }),
   ];
 
+  for (const route of routes) {
+    checks.push(...(await disneyChecks(request, route)));
+  }
+
   return {
-    resortId,
+    resortId: request.resortId,
     checks,
-    login: loginLifetime(login),
+    login: loginLifetime(request.login),
   };
 }

@@ -119,6 +119,7 @@ export const jobSchema = z.object({
   bookingDate: dateSchema,
   earliest: timeSchema,
   latest: timeSchema,
+  rollingWaitMinutes: z.number().int().positive().nullable(),
   encryptedLogin: z.string().nullable(),
   loginExpiresAt: z.date(),
   attemptCount: z.number().int().nonnegative(),

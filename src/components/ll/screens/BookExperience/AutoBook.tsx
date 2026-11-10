@@ -32,8 +32,16 @@ type AutoBookProps = {
   // didn't.
   stopError: unknown;
 
-  onStart: (range: ReturnTimeRange) => void;
+  // `isMoving` keeps the window moving with the clock, so the same wait is
+  // accepted later on.
+  onStart: (range: ReturnTimeRange, isMoving: boolean) => void;
   onStop: () => void;
+};
+
+type MovingWindowToggleProps = {
+  checked: boolean;
+  disabled: boolean;
+  onChange: (checked: boolean) => void;
 };
 
 type TimeSelectProps = {
@@ -197,12 +205,39 @@ function Outcome({ state }: OutcomeProps) {
   return null;
 }
 
+// If it's 3:50 and the guest will take anything until 4:20, a 4:30 time found
+// at 4:00 is the same 30 minute wait, so a moving window accepts it.
+function MovingWindowToggle(props: MovingWindowToggleProps) {
+  const { checked, disabled, onChange } = props;
+
+  return (
+    <label className="mt-4 flex items-start gap-3">
+      <input
+        type="checkbox"
+        className="mt-0.5"
+        checked={checked}
+        disabled={disabled}
+        onChange={event => onChange(event.target.checked)}
+      />
+      <span>
+        <span className="block text-[15px] font-medium">
+          Keep the window moving
+        </span>
+        <span className="note block">
+          As time passes, Latest moves later so you keep the same wait.
+        </span>
+      </span>
+    </label>
+  );
+}
+
 // Lets the guest pick a range of return times and have BG1's server keep
 // checking until it can book one of them, even after the app is closed.
 export default function AutoBook(props: AutoBookProps) {
   const { state, parkHours, isForToday, stopError, onStart, onStop } = props;
   const [chosenEarliest, setChosenEarliest] = useState<ParkTime>();
   const [chosenLatest, setChosenLatest] = useState<ParkTime>();
+  const [isMoving, setIsMoving] = useState(true);
   const trackedJob = state.kind === 'tracking' ? state.job : undefined;
   const isSearching = trackedJob?.status === 'searching';
 
@@ -240,7 +275,7 @@ export default function AutoBook(props: AutoBookProps) {
       return;
     }
 
-    onStart(range);
+    onStart(range, isForToday && isMoving);
   }
 
   return (
@@ -268,6 +303,13 @@ export default function AutoBook(props: AutoBookProps) {
           onChange={setChosenLatest}
         />
       </div>
+      {isForToday && (
+        <MovingWindowToggle
+          checked={isMoving}
+          disabled={isBusy}
+          onChange={setIsMoving}
+        />
+      )}
       {state.kind === 'resuming' && <Resuming />}
       {trackedJob && isSearching && <Searching job={trackedJob} />}
       {stopError !== undefined && <StopFailure error={stopError} />}

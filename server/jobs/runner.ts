@@ -37,7 +37,7 @@ import {
   saveLogin,
 } from './repository';
 import { watchForReturnTime } from './watch';
-import { isWindowOver, resortNow } from './window';
+import { currentRange, isWindowOver, resortNow } from './window';
 
 // How often a running job renews its lease, saves its progress, and checks
 // that it should still be searching. Progress is saved at this pace instead
@@ -272,10 +272,7 @@ class JobRun {
       experienceId: job.experienceId,
       park: resort.experience(job.experienceId).park,
       date: job.bookingDate,
-      range: {
-        earliest: ParkTime.from(job.earliest),
-        latest: ParkTime.from(job.latest),
-      },
+      currentRange: () => currentRange(job, resortNow(job.resortId).time),
       signal: this.controller.signal,
       pollIntervalMs: options.watchPollIntervalMs,
       onAttempt: attempt => this.recordAttempt(attempt),

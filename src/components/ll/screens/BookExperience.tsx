@@ -26,7 +26,7 @@ import PartyContext, { Party } from '@/contexts/PartyContext';
 import PlansContext from '@/contexts/PlansContext';
 import RebookingContext from '@/contexts/RebookingContext';
 import ResortContext from '@/contexts/ResortContext';
-import { parkDate } from '@/datetime';
+import { DateTime, parkDate } from '@/datetime';
 import useDataLoader from '@/hooks/useDataLoader';
 import useScreenState from '@/hooks/useScreenState';
 import useServerJob, {
@@ -79,9 +79,21 @@ type AutoBookPanel = {
   parkHours?: ParkHours;
   isForToday: boolean;
   stopError: unknown;
-  onStart: (range: ReturnTimeRange) => void;
+  onStart: (range: ReturnTimeRange, isMoving: boolean) => void;
   onStop: () => void;
 };
+
+const SECONDS_PER_MINUTE = 60;
+
+// How long, from now, the guest is willing to wait for a return time: until
+// the latest one they picked. A window that keeps this wait moves later as
+// time passes. Undefined when the latest time has already come.
+function acceptedWaitMinutes(range: ReturnTimeRange): number | undefined {
+  const now = DateTime.now().time;
+  const minutes = Math.round((+range.latest - +now) / SECONDS_PER_MINUTE);
+
+  return minutes > 0 ? minutes : undefined;
+}
 
 function hasReachedExperienceLimit(guests: Guests): boolean {
   if (guests.eligible.length > 0) {
@@ -399,7 +411,7 @@ export default function BookExperience({ experience }: BookExperienceProps) {
 
   // Hands the search to BG1's server along with the guest's Disney login,
   // which the server needs to book on their behalf.
-  function startAutoBook(range: ReturnTimeRange): void {
+  function startAutoBook(range: ReturnTimeRange, isMoving: boolean): void {
     if (selected.length === 0) {
       return;
     }
@@ -425,6 +437,7 @@ export default function BookExperience({ experience }: BookExperienceProps) {
       date: offerDate,
       earliest: range.earliest.toString(),
       latest: range.latest.toString(),
+      rollingWaitMinutes: isMoving ? acceptedWaitMinutes(range) : undefined,
     });
   }
 

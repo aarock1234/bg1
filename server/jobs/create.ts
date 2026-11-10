@@ -27,6 +27,9 @@ const MAX_GUESTS = 20;
 
 const MAX_EXPERIENCE_ID_LENGTH = 64;
 
+// A park day is never longer than this.
+const MAX_ROLLING_WAIT_MINUTES = 24 * 60;
+
 export const createJobRequestSchema = z.object({
   resortId: z.enum(RESORT_IDS),
   login: disneyLoginSchema,
@@ -40,6 +43,16 @@ export const createJobRequestSchema = z.object({
   date: dateSchema,
   earliest: timeSchema,
   latest: timeSchema,
+
+  // Keeps the window moving with the clock: from then on, a return time up
+  // to this many minutes from the moment it is found is accepted, even past
+  // `latest`.
+  rollingWaitMinutes: z
+    .number()
+    .int()
+    .positive()
+    .max(MAX_ROLLING_WAIT_MINUTES)
+    .optional(),
 
   // Where to send the notification when the search ends.
   pushSubscription: pushSubscriptionSchema.optional(),
@@ -154,6 +167,7 @@ export async function createJob(request: ValidJobRequest): Promise<CreatedJob> {
     bookingDate: request.date,
     earliest: request.earliest,
     latest: request.latest,
+    rollingWaitMinutes: request.rollingWaitMinutes ?? null,
   };
   const { rules } = await llClientFor(resortId, loginAuth(login));
 

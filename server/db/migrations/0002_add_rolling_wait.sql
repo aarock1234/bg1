@@ -1,0 +1,1 @@
+ALTER TABLE "jobs" ADD COLUMN "rolling_wait_minutes" integer;

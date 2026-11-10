@@ -37,6 +37,10 @@ export const jobs = pgTable(
     earliest: time('earliest').notNull(),
     latest: time('latest').notNull(),
 
+    // For a window that moves with the clock: how many minutes ahead of now
+    // a return time may be. Null for a fixed window.
+    rollingWaitMinutes: integer('rolling_wait_minutes'),
+
     // The guest's Disney login, encrypted. It is removed when the job ends.
     encryptedLogin: text('encrypted_login'),
     loginExpiresAt: timestamp('login_expires_at', timestampOptions).notNull(),

@@ -29,10 +29,10 @@ const VAPID_PRIVATE_KEY_BYTES = 32;
 const FASTEST_POLL_INTERVAL_MS = 100;
 const DEFAULT_POLL_INTERVAL_MS = 1000;
 
-// Watching reads the tip board, which Disney refreshes about once a minute,
-// so checking every few seconds would only add load.
-const FASTEST_WATCH_INTERVAL_MS = 5000;
-const DEFAULT_WATCH_INTERVAL_MS = 15_000;
+// Watching reads the tip board once per check. Checking every second catches
+// a return time as soon as Disney shows it.
+const FASTEST_WATCH_INTERVAL_MS = 250;
+const DEFAULT_WATCH_INTERVAL_MS = 1000;
 
 function base64UrlKey(byteLength: number) {
   return z.string().refine(

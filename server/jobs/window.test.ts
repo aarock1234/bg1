@@ -4,6 +4,7 @@ import { DateTime, ParkTime } from '@/datetime';
 
 import {
   type BookingWindow,
+  currentRange,
   isRangeBackward,
   isWindowOver,
   resortNow,
@@ -32,6 +33,7 @@ function windowBetween(earliest: string, latest: string): BookingWindow {
     bookingDate: PARK_DATE,
     earliest,
     latest,
+    rollingWaitMinutes: null,
   };
 }
 
@@ -196,4 +198,49 @@ describe('resortNow()', () => {
       expect(isWindowOver(windowUntil(latest), now)).toBe(isOver);
     }
   );
+});
+
+describe('a window that moves with the clock', () => {
+  // Started at 3:50 PM for return times until 4:20 PM: a 30 minute wait.
+  const movingWindow: BookingWindow = {
+    bookingDate: PARK_DATE,
+    earliest: '15:50:00',
+    latest: '16:20:00',
+    rollingWaitMinutes: 30,
+  };
+
+  it('accepts the same times as a fixed window at first', () => {
+    expect(currentRange(movingWindow, ParkTime.from('15:50'))).toEqual({
+      earliest: ParkTime.from('15:50'),
+      latest: ParkTime.from('16:20'),
+    });
+  });
+
+  it('accepts later times as time passes, keeping the same wait', () => {
+    expect(currentRange(movingWindow, ParkTime.from('16:00'))).toEqual({
+      earliest: ParkTime.from('15:50'),
+      latest: ParkTime.from('16:30'),
+    });
+  });
+
+  it('leaves a fixed window where it is', () => {
+    const fixedWindow = windowBetween('15:50:00', '16:20:00');
+
+    expect(currentRange(fixedWindow, ParkTime.from('16:00'))).toEqual({
+      earliest: ParkTime.from('15:50'),
+      latest: ParkTime.from('16:20'),
+    });
+  });
+
+  it('stays open after its first latest time has passed', () => {
+    const now = new DateTime(PARK_DATE, ParkTime.from('17:00'));
+
+    expect(isWindowOver(movingWindow, now)).toBe(false);
+  });
+
+  it('ends once its park day is over', () => {
+    const nextDay = new DateTime(NEXT_DATE, ParkTime.from('09:00'));
+
+    expect(isWindowOver(movingWindow, nextDay)).toBe(true);
+  });
 });

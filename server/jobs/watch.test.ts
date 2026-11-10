@@ -68,7 +68,7 @@ function startWatch(ll: FakeLL): Watch {
     experienceId: hm.id,
     park: mk,
     date: TODAY,
-    range,
+    currentRange: () => range,
     signal: controller.signal,
     pollIntervalMs: POLL_INTERVAL_MS,
     onAttempt: attempt => attempts.push(attempt),

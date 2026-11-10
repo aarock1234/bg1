@@ -48,7 +48,7 @@ Besides hosting the app, the server runs auto-book jobs: the app hands over a se
 | `VAPID_PRIVATE_KEY`          | yes      |                                    | Web Push private key, base64url encoded.                                                                 |
 | `VAPID_SUBJECT`              | yes      |                                    | The contact push services are given: an `https:` or `mailto:` URL.                                       |
 | `AUTO_BOOK_ACTION`           | no       | `notify`                           | `notify` watches the tip board and tells the guest; `book` books, which Disney currently refuses.        |
-| `WATCH_POLL_INTERVAL_MS`     | no       | `15000`                            | How long a watching job waits between two looks at the tip board. At least `5000`.                       |
+| `WATCH_POLL_INTERVAL_MS`     | no       | `1000`                             | How long a watching job waits between two looks at the tip board. At least `250`.                        |
 | `AUTO_BOOK_POLL_INTERVAL_MS` | no       | `1000`                             | How long a booking job waits between two checks. At least `100`.                                         |
 | `DISNEY_REQUESTS_PER_SECOND` | no       | the lowest safe value for the pace | How many requests one job may send Disney per second before it stops itself. `10` at the default pace.   |
 | `DISNEY_PROXIES`             | no       | none                               | `host:port:username:password` proxies, one per line or separated by commas. The probe tries one of them. |

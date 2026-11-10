@@ -44,6 +44,7 @@ function job(overrides: Partial<Job> = {}): Job {
     bookingDate: '2021-10-01',
     earliest: '11:00:00',
     latest: '12:00:00',
+    rollingWaitMinutes: null,
     encryptedLogin: ENCRYPTED_LOGIN,
     loginExpiresAt: new Date('2021-10-02T04:00:00.000Z'),
     attemptCount: 7,

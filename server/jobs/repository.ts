@@ -23,6 +23,7 @@ export type NewJob = Pick<
   | 'bookingDate'
   | 'earliest'
   | 'latest'
+  | 'rollingWaitMinutes'
   | 'loginExpiresAt'
   | 'pushSubscription'
 > & {

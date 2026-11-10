@@ -15,6 +15,13 @@
       "when": 1794320842980,
       "tag": "0001_drop_account_hash",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794354208319,
+      "tag": "0002_add_rolling_wait",
+      "breakpoints": true
     }
   ]
 }

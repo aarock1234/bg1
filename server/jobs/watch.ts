@@ -17,7 +17,10 @@ export type WatchRequest = {
 
   // The park date to watch, as YYYY-MM-DD.
   date: string;
-  range: ReturnTimeRange;
+
+  // The return times accepted at the moment of a check, which may move on as
+  // time passes.
+  currentRange: () => ReturnTimeRange;
   signal: AbortSignal;
   pollIntervalMs: number;
   onAttempt?: (attempt: AutoBookAttempt) => void;
@@ -45,8 +48,9 @@ type Miss =
 // One look at the park's tip board. Disney answers it without the
 // bot-protection token that offers and bookings need.
 async function checkReturnTime(request: WatchRequest): Promise<Found | Miss> {
-  const { ll, park, date, experienceId, range } = request;
+  const { ll, park, date, experienceId } = request;
   const experiences = await ll.experiences(park, date);
+  const range = request.currentRange();
   const experience = experiences.find(candidate => {
     return candidate.id === experienceId;
   });

@@ -1,69 +1,36 @@
-import { fixupConfigRules, fixupPluginRules } from '@eslint/compat';
-import { FlatCompat } from '@eslint/eslintrc';
 import js from '@eslint/js';
 import typescriptEslint from '@typescript-eslint/eslint-plugin';
-import tsParser from '@typescript-eslint/parser';
 import jest from 'eslint-plugin-jest';
 import jestDom from 'eslint-plugin-jest-dom';
-import prettier from 'eslint-plugin-prettier';
+import prettierRecommended from 'eslint-plugin-prettier/recommended';
 import react from 'eslint-plugin-react';
 import reactHooks from 'eslint-plugin-react-hooks';
 import reactRefresh from 'eslint-plugin-react-refresh';
 import testingLibrary from 'eslint-plugin-testing-library';
 import globals from 'globals';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const compat = new FlatCompat({
-  baseDirectory: __dirname,
-  recommendedConfig: js.configs.recommended,
-  allConfig: js.configs.all,
-});
 
 export default [
   {
     ignores: ['**/dist'],
   },
-  ...fixupConfigRules(
-    compat.extends(
-      'eslint:recommended',
-      'plugin:@typescript-eslint/recommended',
-      'plugin:react/recommended',
-      'plugin:react/jsx-runtime',
-      'plugin:react-hooks/recommended',
-      'plugin:testing-library/react',
-      'plugin:jest/recommended',
-      'plugin:jest-dom/recommended',
-      'plugin:prettier/recommended',
-      'prettier'
-    )
-  ),
+  js.configs.recommended,
+  ...typescriptEslint.configs['flat/recommended'],
+  react.configs.flat.recommended,
+  react.configs.flat['jsx-runtime'],
+  reactHooks.configs['recommended-latest'],
+  testingLibrary.configs['flat/react'],
+  jest.configs['flat/recommended'],
+  jestDom.configs['flat/recommended'],
+  prettierRecommended,
   {
     plugins: {
-      react: fixupPluginRules(react),
-      'react-hooks': fixupPluginRules(reactHooks),
-      'react-refresh': fixupPluginRules(reactRefresh),
-      'testing-library': fixupPluginRules(testingLibrary),
-      jest: fixupPluginRules(jest),
-      'jest-dom': fixupPluginRules(jestDom),
-      '@typescript-eslint': fixupPluginRules(typescriptEslint),
-      prettier: fixupPluginRules(prettier),
+      'react-refresh': reactRefresh,
     },
     languageOptions: {
       globals: {
         ...globals.browser,
         ...globals.node,
         ...globals.jest,
-      },
-      parser: tsParser,
-      ecmaVersion: 'latest',
-      sourceType: 'module',
-      parserOptions: {
-        ecmaFeatures: {
-          jsx: true,
-        },
       },
     },
     settings: {
@@ -79,7 +46,6 @@ export default [
         },
       ],
       '@typescript-eslint/no-explicit-any': 'off',
-      '@typescript-eslint/no-parameter-properties': 'off',
       curly: ['error', 'multi-line'],
       'jest/expect-expect': 'off',
       'jest/no-standalone-expect': 'off',
@@ -93,10 +59,11 @@ export default [
       ],
       'react-refresh/only-export-components': [
         'error',
-        { allowConstantExport: true },
+        {
+          allowConstantExport: true,
+        },
       ],
       'testing-library/no-node-access': 'off',
-      'prettier/prettier': 'error',
     },
   },
 ];

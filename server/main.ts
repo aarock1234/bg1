@@ -9,7 +9,9 @@ const SHUTDOWN_SIGNALS = ['SIGINT', 'SIGTERM'] as const;
 function main(): void {
   const server = serve(
     {
-      fetch: createApp().fetch,
+      fetch: createApp({
+        apiSecret: env.API_SECRET,
+      }).fetch,
       port: env.PORT,
     },
     ({ port }) => {

@@ -4,6 +4,11 @@ export const RESORT_IDS = ['WDW', 'DLR'] as const;
 
 export type ResortId = (typeof RESORT_IDS)[number];
 
+export const RESORT_TIME_ZONES: Record<ResortId, string> = {
+  WDW: 'America/New_York',
+  DLR: 'America/Los_Angeles',
+};
+
 export type ExperienceType = 'A' | 'E' | 'C' | 'H' | 'P';
 
 type GeoBounds = {

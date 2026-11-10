@@ -1,6 +1,5 @@
 import { DateTime, ParkTime } from '@/datetime';
 
-import { authStore } from './auth';
 import { ApiClient } from './client';
 import { BookingConverter } from './itinerary/booking-converter';
 import type {
@@ -131,7 +130,7 @@ export class ItineraryClient extends ApiClient {
 
   // Returns the guest's plans from today on, in chronological order.
   async plans(): Promise<Booking[]> {
-    const { swid } = authStore.getData();
+    const { swid } = this.auth.getData();
     const apiName = ITINERARY_API_NAMES[this.resort.id];
     const itemTypes = ITEM_TYPES.map(type => `item-types=${type}`).join('&');
 

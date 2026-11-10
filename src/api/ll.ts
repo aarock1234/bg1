@@ -2,7 +2,6 @@ import { DateTime, ParkTime, parkDate } from '@/datetime';
 import { JsonOK } from '@/fetch';
 import kvdb from '@/kvdb';
 
-import { authStore } from './auth';
 import { avatarUrl } from './avatar';
 import { ApiClient, ApiClientOptions, ApiRequest } from './client';
 import { Booking, LLMP, isLLMP } from './itinerary';
@@ -450,7 +449,7 @@ export abstract class LLClient extends ApiClient {
       return super.request<T>(apiRequest);
     }
 
-    const { swid } = authStore.getData();
+    const { swid } = this.auth.getData();
 
     return super.request<T>({
       ...apiRequest,

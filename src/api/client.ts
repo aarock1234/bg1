@@ -1,7 +1,7 @@
 import { JsonOK, JsonResponse, fetchJson } from '@/fetch';
 import { RateLimit } from '@/ratelimit';
 
-import { authStore } from './auth';
+import { Auth, authStore } from './auth';
 import { RESORT_IDS, Resort, ResortId } from './resort';
 import { sensorData } from './sensor-data';
 
@@ -30,6 +30,13 @@ export type ApiRequest = {
 };
 
 export type ApiClientOptions = {
+  // The guest's Disney login. Defaults to the one stored in the browser.
+  auth?: Auth;
+
+  // Sends the client's requests, such as through a proxy. Defaults to the
+  // global fetch.
+  fetch?: typeof fetch;
+
   rateLimit?: RateLimit;
 };
 
@@ -51,12 +58,20 @@ export class RequestError extends Error {
 export abstract class ApiClient {
   protected resort: Resort;
   protected origin: string;
+  protected auth: Auth;
+  protected fetch: typeof fetch | undefined;
   protected rateLimit: RateLimit;
 
   protected static origins: Record<ResortId, string> = {
     WDW: 'https://disneyworld.disney.go.com',
     DLR: 'https://disneyland.disney.go.com',
   };
+
+  // The Disney sites this kind of client talks to, which are also the pages
+  // BG1 runs on.
+  static get allOrigins(): string[] {
+    return Object.values(this.origins);
+  }
 
   static originToResortId(origin: string): ResortId {
     const resortId = RESORT_IDS.find(id => this.origins[id] === origin);
@@ -73,13 +88,15 @@ export abstract class ApiClient {
 
     this.resort = resort;
     this.origin = origins[resort.id];
+    this.auth = options.auth ?? authStore;
+    this.fetch = options.fetch;
     this.rateLimit = options.rateLimit ?? new RateLimit(REQUESTS_PER_SECOND);
   }
 
   protected async request<T>(request: ApiRequest): Promise<JsonOK<T>> {
     this.rateLimit.enforce();
 
-    const { swid, accessToken } = authStore.getData();
+    const { swid, accessToken } = this.auth.getData();
     const sensorDataHeaders = request.sensorData
       ? await this.sensorDataHeaders()
       : {};
@@ -89,6 +106,7 @@ export abstract class ApiClient {
       params: request.params,
       data: request.data,
       timeoutMs: request.timeoutMs,
+      fetch: this.fetch,
       headers: {
         'Accept-Language': 'en-US',
         Authorization: `BEARER ${accessToken}`,
@@ -116,7 +134,7 @@ export abstract class ApiClient {
 
   protected handleFailure(request: ApiRequest, status: number): void {
     if (status === STATUS_UNAUTHORIZED && !request.ignoreUnauth) {
-      setTimeout(() => authStore.deleteData());
+      setTimeout(() => this.auth.deleteData());
       return;
     }
 

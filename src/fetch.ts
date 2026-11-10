@@ -24,6 +24,16 @@ export type FetchJsonOptions = RequestInit & {
   params?: QueryParams;
   data?: unknown;
   timeoutMs?: number;
+
+  // Sends the request in place of the global fetch, such as through a proxy.
+  fetch?: typeof fetch;
+};
+
+type PreparedRequest = {
+  url: string;
+  init: RequestInit;
+  timeoutMs: number;
+  fetch: typeof fetch;
 };
 
 const pendingResponses = new Map<string, Promise<JsonResponse>>();
@@ -34,28 +44,46 @@ export function fetchJson<T = unknown>(
   url: string,
   options: FetchJsonOptions = {}
 ): Promise<JsonResponse<T>> {
-  const { params, data, timeoutMs = DEFAULT_TIMEOUT_MS, ...init } = options;
+  const {
+    params,
+    data,
+    timeoutMs = DEFAULT_TIMEOUT_MS,
+    fetch: sendRequest = fetch,
+    ...init
+  } = options;
   const headers = new Headers(init.headers);
-  const request: RequestInit = {
-    ...init,
-    referrer: init.referrer ?? '',
-    credentials: init.credentials ?? 'omit',
-    cache: init.cache ?? 'no-store',
-    method: init.method ?? (data ? 'POST' : 'GET'),
-    headers,
-  };
+  const body = data ? JSON.stringify(data) : undefined;
+  const method = init.method ?? (data ? 'POST' : 'GET');
 
-  if (data) {
+  if (body !== undefined) {
     headers.set('Content-Type', 'application/json');
-    request.body = JSON.stringify(data);
   }
 
-  const requestUrl = withQueryParams(url, params);
-  const dedupeKey = `${request.method}${requestUrl}`;
+  const request: PreparedRequest = {
+    url: withQueryParams(url, params),
+    init: {
+      ...init,
+      referrer: init.referrer ?? '',
+      credentials: init.credentials ?? 'omit',
+      cache: init.cache ?? 'no-store',
+      method,
+      headers,
+      body,
+    },
+    timeoutMs,
+    fetch: sendRequest,
+  };
 
-  const response = dedupe(dedupeKey, () =>
-    send(requestUrl, request, timeoutMs)
-  );
+  // Only requests that are identical, down to who is asking, are the same
+  // request.
+  const dedupeKey = [
+    method,
+    request.url,
+    headers.get('Authorization') ?? '',
+    body ?? '',
+  ].join('\n');
+
+  const response = dedupe(dedupeKey, () => send(request));
 
   return response as Promise<JsonResponse<T>>;
 }
@@ -94,18 +122,14 @@ function dedupe(
   return response;
 }
 
-async function send(
-  url: string,
-  request: RequestInit,
-  timeoutMs: number
-): Promise<JsonResponse> {
+async function send(request: PreparedRequest): Promise<JsonResponse> {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  const timeoutId = setTimeout(() => controller.abort(), request.timeoutMs);
   let response: Response;
 
   try {
-    response = await fetch(url, {
-      ...request,
+    response = await request.fetch(request.url, {
+      ...request.init,
       signal: controller.signal,
     });
   } catch (error) {

@@ -3,7 +3,7 @@ import { FC, useCallback, useEffect, useState } from 'react';
 import { AuthData, ReauthNeeded, authStore } from '@/api/auth';
 import { InvalidOrigin } from '@/api/client';
 import { LLClient } from '@/api/ll';
-import { Resort, ResortId, loadResort } from '@/api/resort';
+import { RESORT_TIME_ZONES, Resort, loadResort } from '@/api/resort';
 import { VQClient } from '@/api/vq';
 import { siteUrl } from '@/config';
 import ClientsContext, {
@@ -22,11 +22,6 @@ import Merlock from './ll/Merlock';
 import BGClient from './vq/BGClient';
 
 export const NEWS_VERSION = 0;
-
-const TIME_ZONES: Record<ResortId, string> = {
-  WDW: 'America/New_York',
-  DLR: 'America/Los_Angeles',
-};
 
 // The apps BG1 can run as. Which one runs depends on the Disney site BG1 is
 // opened on, which each app's client maps to a resort.
@@ -123,7 +118,7 @@ export default function App() {
         return;
       }
 
-      DateTime.setTimeZone(TIME_ZONES[loadedApp.resort.id]);
+      DateTime.setTimeZone(RESORT_TIME_ZONES[loadedApp.resort.id]);
       setApp(loadedApp);
     }
 

@@ -11,9 +11,22 @@ export type AuthData = {
   swid: string;
   accessToken: string;
   expires: number;
+
+  // Lets a new access token be requested without logging in again, when
+  // Disney's login provides one.
+  refreshToken?: string;
+  refreshExpires?: number;
 };
 
 export type Credentials = Pick<AuthData, 'swid' | 'accessToken'>;
+
+// Where a client gets the guest's Disney login. `getData` throws ReauthNeeded
+// when there is no usable login, and `deleteData` is called when Disney
+// rejects the one it was given.
+export type Auth = {
+  getData(): Credentials;
+  deleteData(): void;
+};
 
 export class ReauthNeeded extends Error {
   name = 'ReauthNeeded';
@@ -51,7 +64,8 @@ function isStillUsable(expires: number): boolean {
   return expiry.date > now.date || expiry.time >= EARLIEST_SAME_DAY_EXPIRY;
 }
 
-export class AuthStore {
+// The login kept in the browser's local storage.
+export class AuthStore implements Auth {
   onUnauthorized: () => void = () => undefined;
 
   getData(): Credentials {

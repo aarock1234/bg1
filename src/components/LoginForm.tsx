@@ -17,6 +17,8 @@ type OneIdToken = {
   swid: string;
   access_token: string;
   exp: string | number;
+  refresh_token?: string;
+  refresh_exp?: string | number;
 };
 
 type OneIdLogin = {
@@ -51,6 +53,25 @@ declare global {
 // matter how often the login form is shown.
 let sessionPromise: Promise<OneIdSession> | undefined;
 
+function toAuthData(token: OneIdToken): AuthData {
+  // Temporary: shows which fields Disney's login provides (names only), to
+  // find out whether a login can be refreshed. Remove once that is known.
+  console.info('oneid token fields:', Object.keys(token).join(', '));
+
+  const authData: AuthData = {
+    swid: token.swid,
+    accessToken: token.access_token,
+    expires: new Date(token.exp).getTime(),
+  };
+
+  if (token.refresh_token && token.refresh_exp !== undefined) {
+    authData.refreshToken = token.refresh_token;
+    authData.refreshExpires = new Date(token.refresh_exp).getTime();
+  }
+
+  return authData;
+}
+
 async function launchLogin(
   resortId: string,
   onLogin: (data: AuthData) => void
@@ -59,11 +80,7 @@ async function launchLogin(
 
   client.off('login');
   client.on('login', ({ token }) => {
-    onLogin({
-      swid: token.swid,
-      accessToken: token.access_token,
-      expires: new Date(token.exp).getTime(),
-    });
+    onLogin(toAuthData(token));
     deleteGuestData(clientId);
   });
 

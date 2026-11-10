@@ -1,6 +1,5 @@
 import { DateTime, ParkTime } from '@/datetime';
 
-import { authStore } from './auth';
 import { avatarUrl } from './avatar';
 import { ApiClient } from './client';
 import { DasBooking } from './itinerary';
@@ -155,7 +154,7 @@ export class DasClient extends ApiClient {
   }
 
   async parties(): Promise<DasParty[]> {
-    const swid = encodeURIComponent(authStore.getData().swid);
+    const swid = encodeURIComponent(this.auth.getData().swid);
 
     const { data } = await this.request<PartiesResponse>({
       path: apiPath(1, `users/${swid}/parties`),

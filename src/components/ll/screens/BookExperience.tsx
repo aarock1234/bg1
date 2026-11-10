@@ -66,7 +66,7 @@ type BookingPanelProps = {
   // offer BG1 asks for at the moment.
   isOfferRefused: boolean;
 
-  // Left out while modifying a reservation, which the server can't do.
+  // Watching for a return time, which works for any party, booked or not.
   autoBook?: AutoBookPanel;
 
   onRefreshParty: () => void;
@@ -127,8 +127,15 @@ function BookingPanel(props: BookingPanelProps) {
     return <NoGuestsFound onRefresh={props.onRefreshParty} />;
   }
 
+  // A party that can't book, such as one that already holds this Lightning
+  // Lane, can still watch for a better time to change to.
   if (!hasEligibleGuests) {
-    return <NoEligibleGuests />;
+    return (
+      <>
+        <NoEligibleGuests />
+        {autoBook && <AutoBook {...autoBook} />}
+      </>
+    );
   }
 
   if (offer === undefined) {
@@ -411,8 +418,13 @@ export default function BookExperience({ experience }: BookExperienceProps) {
 
   // Hands the search to BG1's server along with the guest's Disney login,
   // which the server needs to book on their behalf.
+  // A watch only reads the tip board, so a party that can't book right now
+  // is still watched for: the guests are named in the notification only.
   function startAutoBook(range: ReturnTimeRange, isMoving: boolean): void {
-    if (selected.length === 0) {
+    const watchedGuests =
+      selected.length > 0 ? selected : (guests?.ineligible ?? []);
+
+    if (watchedGuests.length === 0) {
       return;
     }
 
@@ -433,7 +445,7 @@ export default function BookExperience({ experience }: BookExperienceProps) {
       resortId: resort.id,
       login,
       experienceId: experience.id,
-      guests: selected,
+      guests: watchedGuests,
       date: offerDate,
       earliest: range.earliest.toString(),
       latest: range.latest.toString(),
@@ -489,7 +501,7 @@ export default function BookExperience({ experience }: BookExperienceProps) {
             offer={offer}
             isModifying={!!existingBooking}
             isOfferRefused={isOfferRefused}
-            autoBook={existingBooking ? undefined : autoBookPanel}
+            autoBook={autoBookPanel}
             onRefreshParty={loadParty}
             onOfferChange={setOffer}
             onBook={book}

@@ -1,7 +1,9 @@
 import { ParkTime } from '@/datetime';
+import { RateLimitExceeded } from '@/ratelimit';
 
+import { ReauthNeeded } from '../auth';
 import { RequestError } from '../client';
-import { OfferError } from '../ll';
+import { ModifyNotAllowed, OfferError } from '../ll';
 import type {
   Guest,
   Guests,
@@ -12,21 +14,16 @@ import type {
 } from '../ll';
 import { bookForGuests } from './booking';
 
-// How long to wait between checks unless the request says otherwise. Each
-// check makes up to three requests, and the browser's client refuses
-// everything once it makes more than five in one second.
+// How long to wait between checks unless the request says otherwise. A
+// client's default rate limit allows this pace; a faster one needs a higher
+// limit.
 const DEFAULT_POLL_INTERVAL_MS = 1000;
 
+// The longest wait between two checks while checks keep being interrupted.
 const MAX_BACKOFF_MS = 30_000;
 
-// How many checks in a row may fail on connection trouble before giving up.
-const MAX_CONSECUTIVE_FAILURES = 8;
-
-const STATUS_NETWORK_FAILURE = 0;
-const STATUS_FORBIDDEN = 403;
+const STATUS_UNAUTHORIZED = 401;
 const STATUS_GONE = 410;
-const STATUS_TOO_MANY_REQUESTS = 429;
-const STATUS_SERVER_ERROR = 500;
 
 // The return times the guest is willing to accept, both ends included.
 export type ReturnTimeRange = {
@@ -35,7 +32,7 @@ export type ReturnTimeRange = {
 };
 
 // Why a check didn't end in a booking: Disney had no return time to offer,
-// offered one outside the range, or couldn't be reached.
+// offered one outside the range, or the check itself went wrong.
 type Miss =
   | {
       kind: 'unavailable';
@@ -46,6 +43,9 @@ type Miss =
     }
   | {
       kind: 'interrupted';
+
+      // What interrupted the check, for whoever logs it.
+      error: unknown;
     };
 
 type Booked = {
@@ -88,14 +88,6 @@ export class NoEligibleGuests extends Error {
   }
 }
 
-export class ConnectionLost extends Error {
-  readonly name = 'ConnectionLost';
-
-  constructor() {
-    super('Too many consecutive requests failed');
-  }
-}
-
 function isWithinRange(time: ParkTime, range: ReturnTimeRange): boolean {
   return time >= range.earliest && time <= range.latest;
 }
@@ -113,20 +105,17 @@ function isUnavailable(error: unknown): boolean {
   return error instanceof OfferError || requestStatus(error) === STATUS_GONE;
 }
 
-// A failure worth retrying: a dropped connection, a rejected bot-protection
-// token (the client fetches a new one), throttling, or a server error.
-function isTransient(error: unknown): boolean {
-  const status = requestStatus(error);
-
-  if (status === undefined) {
-    return false;
-  }
-
+// A failure that checking again can't fix: Disney no longer accepts the
+// login, the booking can't be changed, or the client refuses to send any more
+// requests. Everything else is worth another try, whether it is a dropped
+// connection, a rejected bot-protection token, throttling, or an answer
+// nobody expected.
+function isFinal(error: unknown): boolean {
   return (
-    status === STATUS_NETWORK_FAILURE ||
-    status === STATUS_FORBIDDEN ||
-    status === STATUS_TOO_MANY_REQUESTS ||
-    status >= STATUS_SERVER_ERROR
+    error instanceof ReauthNeeded ||
+    error instanceof ModifyNotAllowed ||
+    error instanceof RateLimitExceeded ||
+    requestStatus(error) === STATUS_UNAUTHORIZED
   );
 }
 
@@ -214,19 +203,22 @@ async function attemptBooking(
       };
     }
 
-    if (isTransient(error)) {
-      return {
-        kind: 'interrupted',
-      };
+    if (isFinal(error)) {
+      throw error;
     }
 
-    throw error;
+    return {
+      kind: 'interrupted',
+      error,
+    };
   }
 }
 
 // Keeps requesting an offer until one falls within the range, then books it.
-// Rejects with the signal's reason when aborted, and with the error when a
-// check fails in a way that retrying can't fix.
+// A check that goes wrong is tried again, with a growing wait between tries,
+// for as long as the caller lets the search run: there is no limit here on
+// how often. Rejects with the signal's reason when aborted, and with the
+// error when a check fails in a way that retrying can't fix.
 export async function autoBook(request: AutoBookRequest): Promise<LLMP> {
   const {
     signal,
@@ -246,10 +238,6 @@ export async function autoBook(request: AutoBookRequest): Promise<LLMP> {
 
     consecutiveFailures =
       result.kind === 'interrupted' ? consecutiveFailures + 1 : 0;
-
-    if (consecutiveFailures > MAX_CONSECUTIVE_FAILURES) {
-      throw new ConnectionLost();
-    }
 
     const retryInMs = retryDelayMs(consecutiveFailures, pollIntervalMs);
 

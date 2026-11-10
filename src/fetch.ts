@@ -38,8 +38,9 @@ type PreparedRequest = {
 
 const pendingResponses = new Map<string, Promise<JsonResponse>>();
 
-// Fetches a URL and parses a JSON response. A network failure or timeout
-// resolves to a failure with status 0 instead of rejecting.
+// Fetches a URL and parses a JSON response. A network failure, a timeout, or
+// a body that can't be read resolves to a failure with status 0 instead of
+// rejecting.
 export function fetchJson<T = unknown>(
   url: string,
   options: FetchJsonOptions = {}
@@ -128,13 +129,20 @@ async function send(request: PreparedRequest): Promise<JsonResponse> {
   const { url, init, timeoutMs, fetch: sendRequest } = request;
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-  let response: Response;
 
+  // The timeout covers the body as well: a response whose headers arrive but
+  // whose body stalls or is cut off fails like any other lost connection.
   try {
-    response = await sendRequest(url, {
+    const response = await sendRequest(url, {
       ...init,
       signal: controller.signal,
     });
+
+    return {
+      ok: response.ok,
+      status: response.status,
+      data: await parseJsonBody(response),
+    };
   } catch (error) {
     console.error(error);
 
@@ -146,12 +154,6 @@ async function send(request: PreparedRequest): Promise<JsonResponse> {
   } finally {
     clearTimeout(timeoutId);
   }
-
-  return {
-    ok: response.ok,
-    status: response.status,
-    data: await parseJsonBody(response),
-  };
 }
 
 async function parseJsonBody(response: Response): Promise<unknown> {

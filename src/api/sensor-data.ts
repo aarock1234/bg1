@@ -8,6 +8,10 @@ const SENSOR_DATA_URL = serviceUrl('sensor/data');
 // it expects a fresh one.
 const MAX_USES_PER_TOKEN = 5;
 
+// How long the backend gets to answer. A request waiting for a token can't
+// time out on its own, so without this a hung fetch would stall it for good.
+const SENSOR_DATA_TIMEOUT_MS = 8000;
+
 export class SensorDataUnavailable extends Error {
   name = 'SensorDataUnavailable';
 }
@@ -17,6 +21,7 @@ export class SensorDataUnavailable extends Error {
 export async function fetchTokenFromService(): Promise<string> {
   const response = await fetch(SENSOR_DATA_URL, {
     method: 'POST',
+    signal: AbortSignal.timeout(SENSOR_DATA_TIMEOUT_MS),
   });
 
   if (!response.ok) {

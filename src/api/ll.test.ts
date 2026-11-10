@@ -23,6 +23,7 @@ import { TODAY, TOMORROW, setTime } from '@/testing';
 
 import { RequestError } from './client';
 import {
+  BOOKING_TIMEOUT_MS,
   Experience,
   Guest,
   LLTracker,
@@ -604,6 +605,7 @@ describe('LLClientWDW', () => {
               ],
             })),
           },
+          timeoutMs: BOOKING_TIMEOUT_MS,
         },
         {
           sensorData: true,
@@ -647,6 +649,7 @@ describe('LLClientWDW', () => {
               ...orderDetailsById.get(g.id),
             })),
           },
+          timeoutMs: BOOKING_TIMEOUT_MS,
         },
         {
           sensorData: true,
@@ -873,6 +876,7 @@ describe('LLClientDLR', () => {
             offerId: offer.id,
             ...diu,
           },
+          timeoutMs: BOOKING_TIMEOUT_MS,
         },
         {
           sensorData: true,

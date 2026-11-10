@@ -2,6 +2,7 @@ import { DateTime, ParkTime, parkDate } from '@/datetime';
 
 import {
   ApiGuest,
+  BOOKING_TIMEOUT_MS,
   Experience,
   Guest,
   Guests,
@@ -378,6 +379,7 @@ export class LLClientWDW extends LLClient {
           }),
       },
       sensorData: true,
+      timeoutMs: BOOKING_TIMEOUT_MS,
     });
 
     return this.lightningLane(offer.experience, data);
@@ -407,6 +409,7 @@ export class LLClientWDW extends LLClient {
           }),
       },
       sensorData: true,
+      timeoutMs: BOOKING_TIMEOUT_MS,
     });
 
     return this.lightningLane(offer.experience, {

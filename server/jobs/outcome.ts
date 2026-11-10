@@ -1,7 +1,7 @@
 import { ReauthNeeded } from '@/api/auth';
 import { RequestError } from '@/api/client';
-import { type LLMP, ModifyNotAllowed } from '@/api/ll';
-import { ConnectionLost, NoEligibleGuests } from '@/api/ll/auto-book';
+import { type Guests, type LLMP, ModifyNotAllowed } from '@/api/ll';
+import { NoEligibleGuests } from '@/api/ll/auto-book';
 import { RateLimitExceeded } from '@/ratelimit';
 
 import { FailureCode, type JobOutcome, JobStatus } from './job';
@@ -53,20 +53,28 @@ export const WINDOW_OVER: UnsuccessfulOutcome = {
   },
 };
 
+// A party that has reached the experience's limit most likely holds the
+// Lightning Lane already: a booking can go through without its answer ever
+// arriving, after which nobody is eligible anymore.
+function noEligibleGuestsMessage(guests: Guests): string {
+  const hasReachedLimit = guests.ineligible.some(guest => {
+    return guest.ineligibleReason === 'EXPERIENCE_LIMIT_REACHED';
+  });
+
+  if (hasReachedLimit) {
+    return 'Your party can no longer book this Lightning Lane. Check your plans: it may already be booked.';
+  }
+
+  return 'Nobody in your party can book this Lightning Lane anymore.';
+}
+
 // Turns the error that stopped a search into the outcome the guest is told
 // about. The messages are shown as they are, so they say nothing technical.
 export function outcomeOfError(error: unknown): UnsuccessfulOutcome {
   if (error instanceof NoEligibleGuests) {
     return failed(
       FailureCode.NO_ELIGIBLE_GUESTS,
-      'Nobody in your party can book this Lightning Lane anymore.'
-    );
-  }
-
-  if (error instanceof ConnectionLost) {
-    return failed(
-      FailureCode.CONNECTION_LOST,
-      'Disney stopped answering, so the search was stopped.'
+      noEligibleGuestsMessage(error.guests)
     );
   }
 

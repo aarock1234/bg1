@@ -12,14 +12,19 @@ const NO_TRACKING: NonNullable<LLClientOptions['tracker']> = {
 
 const resorts = new Map<ResortId, Promise<Resort>>();
 
-// Loads each resort's data once and shares it between clients.
+// Loads each resort's data once and shares it between clients. A load that
+// fails is forgotten, so the next caller tries again.
 export function resortFor(resortId: ResortId): Promise<Resort> {
-  let resort = resorts.get(resortId);
+  const loaded = resorts.get(resortId);
 
-  if (!resort) {
-    resort = loadResort(resortId);
-    resorts.set(resortId, resort);
+  if (loaded) {
+    return loaded;
   }
+
+  const resort = loadResort(resortId);
+
+  resorts.set(resortId, resort);
+  resort.catch(() => resorts.delete(resortId));
 
   return resort;
 }

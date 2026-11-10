@@ -16,6 +16,11 @@ export type { LLMP };
 
 export const BOOKINGS_KEY = 'bg1.ll.bookings';
 
+// How long a booking request may take. It gets longer than other requests
+// because giving up on one that Disney goes on to complete leaves the guest
+// with a Lightning Lane they were told they didn't get.
+export const BOOKING_TIMEOUT_MS = 20_000;
+
 const TIME_PATTERN = /^\d{2}:\d{2}:\d{2}$/;
 
 // Sorts guests with no known eligibility time after those who have one.

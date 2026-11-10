@@ -25,7 +25,7 @@ jest.spyOn(authStore, 'getData').mockReturnValue({
 
 type ExpectedRequest = Pick<
   NonNullable<Parameters<typeof fetchJson>[1]>,
-  'method' | 'params' | 'data'
+  'method' | 'params' | 'data' | 'timeoutMs'
 >;
 
 type ExpectFetchOptions = {
@@ -82,7 +82,7 @@ export function expectFetch(
       method: request.method,
       params,
       data: request.data,
-      timeoutMs: undefined,
+      timeoutMs: request.timeoutMs,
       headers: {
         'Accept-Language': 'en-US',
         Authorization: `BEARER ${accessToken}`,

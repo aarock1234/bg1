@@ -261,6 +261,16 @@ class JobRun {
   }
 
   private recordAttempt(attempt: AutoBookAttempt): void {
+    if (attempt.kind === 'interrupted') {
+      this.log.warn(
+        {
+          ...describeError(attempt.error),
+          retryInMs: attempt.retryInMs,
+        },
+        'job check interrupted'
+      );
+    }
+
     this.progress.attemptCount += 1;
     this.progress.lastAttempt = {
       kind: attempt.kind,

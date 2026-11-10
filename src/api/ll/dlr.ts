@@ -3,6 +3,7 @@ import { DateTime, ParkTime, parkDate } from '@/datetime';
 import { encryptOfferId } from '../diu';
 import {
   ApiGuest,
+  BOOKING_TIMEOUT_MS,
   Experience,
   Guest,
   Guests,
@@ -196,6 +197,7 @@ export class LLClientDLR extends LLClient {
         ...modificationFields,
       },
       sensorData: true,
+      timeoutMs: BOOKING_TIMEOUT_MS,
     });
 
     return this.lightningLane(offer, data.booking);

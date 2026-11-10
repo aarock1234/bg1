@@ -10,8 +10,11 @@ import RebookingProvider from '@/providers/RebookingProvider';
 
 import Home from './screens/Home';
 
+// The Lightning Lane client: the Home screen and the state shared by every
+// screen reached from it.
 export default function Merlock() {
   const [tabName] = useState(Home.getSavedTabName);
+
   return (
     <DasPartiesProvider>
       <PlansProvider>

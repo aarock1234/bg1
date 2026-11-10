@@ -97,9 +97,9 @@ describe('MultiPassList', () => {
     await loading();
     expect(ll.experiences).toHaveBeenCalledTimes(1);
     see.no(LIGHTNING_PICK_INFO);
-    inExp(sm).getByTitle(NEXT_DROP_INFO);
-    inExp(hm).getByTitle(BOOKED_INFO);
-    inExp(hm).getByTitle(FUTURE_DROP_INFO);
+    inExp(sm).getByLabelText(NEXT_DROP_INFO);
+    inExp(hm).getByLabelText(BOOKED_INFO);
+    inExp(hm).getByLabelText(FUTURE_DROP_INFO);
 
     setTime('10:00');
     click('Refresh Experiences');
@@ -107,8 +107,8 @@ describe('MultiPassList', () => {
     expect(ll.experiences).toHaveBeenCalledTimes(2);
 
     see.no(NEXT_DROP_INFO);
-    inExp(sm).getByTitle(LIGHTNING_PICK_INFO);
-    inExp(hm).getByTitle(FUTURE_DROP_INFO);
+    inExp(sm).getByLabelText(LIGHTNING_PICK_INFO);
+    inExp(hm).getByLabelText(FUTURE_DROP_INFO);
 
     click(BOOKED_INFO);
     await see.screen('Booked');

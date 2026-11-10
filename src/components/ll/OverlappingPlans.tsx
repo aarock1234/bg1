@@ -1,5 +1,6 @@
 import { use } from 'react';
 
+import { Booking } from '@/api/itinerary';
 import { Offer } from '@/api/ll';
 import PlansContext from '@/contexts/PlansContext';
 
@@ -7,23 +8,63 @@ import Alert from '../Alert';
 import { Time } from '../Time';
 import ReturnWindow from './ReturnWindow';
 
-export default function OverlappingPlans({
-  offer,
-}: {
+type OverlappingPlansProps = {
   offer: Pick<Offer, 'start' | 'end' | 'itinerary'>;
-}) {
+};
+
+type OverlappedPlanProps = {
+  plan: Booking;
+};
+
+// Returns the plans whose time overlaps the offer's return time more than
+// Disney recommends.
+function findOverlappedPlans(
+  offer: OverlappingPlansProps['offer'],
+  plans: Booking[]
+): Booking[] {
+  const overlappedItems = offer.itinerary.filter(item => {
+    return item.overlap.contains(offer.start.time);
+  });
+
+  return overlappedItems.flatMap(item => {
+    const plan = plans.find(plan => {
+      return (
+        plan.facilityId === item.facilityId &&
+        !!plan.start.time?.equals(item.startTime)
+      );
+    });
+
+    return plan ?? [];
+  });
+}
+
+function OverlappedPlan({ plan }: OverlappedPlanProps) {
+  return (
+    <li>
+      <div className="font-semibold">
+        <ReturnWindow {...plan} />
+      </div>
+      <div className="text-lg">{plan.name}</div>
+      {plan.type === 'LL' && plan.showTimeInfo && (
+        <div className="">
+          Show Time:{' '}
+          <b>
+            <Time time={plan.showTimeInfo.showStartTime} /> -{' '}
+            <Time time={plan.showTimeInfo.showEndTime} />
+          </b>
+        </div>
+      )}
+    </li>
+  );
+}
+
+export default function OverlappingPlans({ offer }: OverlappingPlansProps) {
   const { plans } = use(PlansContext);
-  const overlappedPlans = offer.itinerary
-    .filter(({ overlap }) => overlap.contains(offer.start.time))
-    .flatMap(
-      item =>
-        plans.find(
-          b =>
-            b.facilityId === item.facilityId &&
-            !!b.start.time?.equals(item.startTime)
-        ) ?? []
-    );
-  if (overlappedPlans.length === 0) return null;
+  const overlappedPlans = findOverlappedPlans(offer, plans);
+
+  if (overlappedPlans.length === 0) {
+    return null;
+  }
 
   return (
     <Alert title="Overlapping Plans">
@@ -32,22 +73,8 @@ export default function OverlappingPlans({
         recommended:
       </p>
       <ul className="dividers divide-yellow-400/50 -my-3 px-4">
-        {overlappedPlans.map(b => (
-          <li key={b.id}>
-            <div className="font-semibold">
-              <ReturnWindow {...b} />
-            </div>
-            <div className="text-lg">{b.name}</div>
-            {b.type === 'LL' && b.showTimeInfo && (
-              <div className="">
-                Show Time:{' '}
-                <b>
-                  <Time time={b.showTimeInfo.showStartTime} /> -{' '}
-                  <Time time={b.showTimeInfo.showEndTime} />
-                </b>
-              </div>
-            )}
-          </li>
+        {overlappedPlans.map(plan => (
+          <OverlappedPlan plan={plan} key={plan.id} />
         ))}
       </ul>
       <p>

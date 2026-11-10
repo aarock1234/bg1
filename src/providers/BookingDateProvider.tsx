@@ -1,4 +1,12 @@
-import { use, useCallback, useEffect, useState } from 'react';
+import {
+  Dispatch,
+  ReactNode,
+  SetStateAction,
+  use,
+  useCallback,
+  useEffect,
+  useState,
+} from 'react';
 
 import BookingDateContext from '@/contexts/BookingDateContext';
 import ClientsContext from '@/contexts/ClientsContext';
@@ -6,49 +14,67 @@ import { modifyDate, parkDate } from '@/datetime';
 import kvdb from '@/kvdb';
 
 export const BOOKING_DATE_KEY = 'bg1.date';
+
+// How many days can be booked, counting today.
 export const NUM_BOOKING_DAYS = 22;
 
-function getBookingDates() {
+function getBookingDates(): string[] {
   const today = parkDate();
-  return [...Array(NUM_BOOKING_DAYS).keys()].map(i => modifyDate(today, i));
+
+  const daysAhead = [...Array(NUM_BOOKING_DAYS).keys()];
+
+  return daysAhead.map(days => modifyDate(today, days));
 }
 
-function validDate(date: string | void) {
-  return date && getBookingDates().includes(date) ? date : parkDate();
+// Returns the date if it can be booked, and today otherwise.
+function toBookableDate(date: unknown): string {
+  if (typeof date === 'string' && getBookingDates().includes(date)) {
+    return date;
+  }
+
+  return parkDate();
 }
+
+type BookingDateProviderProps = {
+  children: ReactNode;
+};
 
 export default function BookingDateProvider({
   children,
-}: {
-  children: React.ReactNode;
-}) {
-  const { prebook } = use(ClientsContext).ll.rules;
+}: BookingDateProviderProps) {
+  const { prebook: canPrebook } = use(ClientsContext).ll.rules;
+
   const [bookingDate, setDate] = useState(() => {
-    return prebook
-      ? validDate(kvdb.getDaily<string>(BOOKING_DATE_KEY))
+    return canPrebook
+      ? toBookableDate(kvdb.getDaily(BOOKING_DATE_KEY))
       : parkDate();
   });
 
   useEffect(() => {
-    kvdb.setDaily<string>(BOOKING_DATE_KEY, bookingDate);
+    kvdb.setDaily(BOOKING_DATE_KEY, bookingDate);
   }, [bookingDate]);
 
-  const setBookingDate = useCallback(
-    (date: Parameters<typeof setDate>[0]) => {
-      setDate(prevDate => {
-        date = typeof date === 'function' ? date(prevDate) : date;
-        return prebook ? validDate(date) : parkDate();
+  const setBookingDate = useCallback<Dispatch<SetStateAction<string>>>(
+    dateOrUpdater => {
+      setDate(previousDate => {
+        const date =
+          typeof dateOrUpdater === 'function'
+            ? dateOrUpdater(previousDate)
+            : dateOrUpdater;
+
+        return canPrebook ? toBookableDate(date) : parkDate();
       });
     },
-    [prebook, setDate]
+    [canPrebook]
   );
 
-  useEffect(() => {
-    kvdb.setDaily<string>(BOOKING_DATE_KEY, bookingDate);
-  }, [bookingDate]);
-
   return (
-    <BookingDateContext value={{ bookingDate, setBookingDate }}>
+    <BookingDateContext
+      value={{
+        bookingDate,
+        setBookingDate,
+      }}
+    >
       {children}
     </BookingDateContext>
   );

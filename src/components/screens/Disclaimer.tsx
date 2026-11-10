@@ -1,9 +1,19 @@
 import FloatingButton from '../FloatingButton';
 import Screen from '../Screen';
 
-export default function Disclaimer({ onAccept }: { onAccept: () => void }) {
+const WARNING_THEME = {
+  bg: 'bg-red',
+  text: '',
+  color: '',
+};
+
+type DisclaimerProps = {
+  onAccept: () => void;
+};
+
+export default function Disclaimer({ onAccept }: DisclaimerProps) {
   return (
-    <Screen title="Warning!" theme={{ bg: 'bg-red', text: '', color: '' }}>
+    <Screen title="Warning!" theme={WARNING_THEME}>
       <p>
         Use at your own risk. BG1 is highly experimental, for demonstration
         purposes only, and provided &quot;as is&quot; without warranty of any

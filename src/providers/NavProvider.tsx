@@ -1,107 +1,192 @@
-import { useEffect, useRef, useState } from 'react';
+import {
+  FC,
+  JSX,
+  ReactElement,
+  isValidElement,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 
-import NavContext, { NavError } from '@/contexts/NavContext';
+import NavContext, { NavError, NavMethods } from '@/contexts/NavContext';
 import ScreensContext, { Screens } from '@/contexts/ScreensContext';
 
-let keyInc = 0;
-const nextKey = () => ++keyInc;
+// A screen in the navigation stack. The key keeps the screen's state when the
+// screens around it change.
+type StackItem = {
+  elem: JSX.Element;
+  key: number;
+};
 
-const getHashPos = () => Number(location.hash.slice(1)) || 0;
+let lastKey = 0;
 
-let hashChanged = () => undefined as void;
+function nextKey(): number {
+  lastKey += 1;
 
-export default function NavProvider({
-  children,
-}: {
-  children: React.JSX.Element;
-}) {
-  const [screens, setScreens] = useState<Screens>({ activeScreen: children });
-  const stack = useRef<{ elem: React.JSX.Element; key: number }[]>([
-    { elem: children, key: 0 },
+  return lastKey;
+}
+
+// The position in the stack of the screen the browser is showing. It lives in
+// the URL hash, which makes the browser's back button work.
+function getHashPos(): number {
+  return Number(location.hash.slice(1)) || 0;
+}
+
+function isScreen<P>(elem: unknown, Screen: FC<P>): elem is ReactElement<P> {
+  return isValidElement(elem) && elem.type === Screen;
+}
+
+function preventUnload(event: BeforeUnloadEvent) {
+  event.preventDefault();
+}
+
+type NavProviderProps = {
+  children: JSX.Element;
+};
+
+export default function NavProvider({ children }: NavProviderProps) {
+  const [screens, setScreens] = useState<Screens>({
+    activeScreen: children,
+  });
+  const [stack, setStack] = useState<StackItem[]>([
+    {
+      elem: children,
+      key: 0,
+    },
   ]);
-  const nav = useRef({
-    goTo(elem: React.JSX.Element, options?: { replace?: boolean }) {
+
+  // The ref always holds the latest stack, so that navigating more than once
+  // before the next render builds on the previous step. The state renders it.
+  const stackRef = useRef(stack);
+  const resolveGoBack = useRef<() => void>(undefined);
+
+  const updateStack = useCallback((newStack: StackItem[]) => {
+    stackRef.current = newStack;
+    setStack(newStack);
+  }, []);
+
+  const goTo = useCallback<NavMethods['goTo']>(
+    (elem, options) => {
       let pos = getHashPos();
       let key: number;
+      let newStack: StackItem[];
+
       if (options?.replace) {
-        key = stack.current[pos]?.key ?? nextKey();
-        setScreens(screens => ({ ...screens, activeScreen: elem }));
+        newStack = [...stackRef.current];
+        key = newStack[pos]?.key ?? nextKey();
       } else {
-        stack.current = stack.current.slice(0, ++pos);
-        location.hash = `#${pos}`;
+        pos += 1;
+        newStack = stackRef.current.slice(0, pos);
         key = nextKey();
+        location.hash = `#${pos}`;
       }
-      stack.current[pos] = { elem, key };
-    },
-    goBack<P, C extends React.FC<P>>({
-      screen: Screen,
-      props,
-    }: { screen?: C; props?: Partial<P> } = {}) {
-      const promise = new Promise<void>(resolve => {
-        hashChanged = () => {
-          resolve();
-          hashChanged = () => undefined;
-        };
+
+      newStack[pos] = {
+        elem,
+        key,
+      };
+
+      updateStack(newStack);
+      setScreens({
+        activeScreen: elem,
+        prevScreen: newStack[pos - 1]?.elem,
       });
+    },
+    [updateStack]
+  );
+
+  const goBack = useCallback<NavMethods['goBack']>(
+    ({ screen: Screen, props } = {}) => {
+      // Going back is done by the browser, which reports it with a hashchange
+      // event some time later.
+      const hashChanged = new Promise<void>(resolve => {
+        resolveGoBack.current = resolve;
+      });
+
       if (!Screen) {
         history.back();
-        return promise;
+
+        return hashChanged;
       }
-      const pos = getHashPos();
-      for (let i = pos - 1; i >= 0; --i) {
-        const item = stack.current[i];
-        if (item?.elem.type === Screen) {
-          history.go(i - pos);
-          if (props) {
-            const newProps = { ...item.elem.props, ...props };
-            item.elem = <Screen {...newProps} />;
-          }
-          return promise;
+
+      const currentPos = getHashPos();
+
+      for (let pos = currentPos - 1; pos >= 0; --pos) {
+        const item = stackRef.current[pos];
+
+        if (!item || !isScreen(item.elem, Screen)) {
+          continue;
         }
+
+        history.go(pos - currentPos);
+
+        if (props) {
+          const newStack = [...stackRef.current];
+
+          newStack[pos] = {
+            elem: <Screen {...item.elem.props} {...props} />,
+            key: item.key,
+          };
+          updateStack(newStack);
+        }
+
+        return hashChanged;
       }
+
       throw new NavError(`No previous ${Screen.name} screen`);
     },
-  });
+    [updateStack]
+  );
+
+  const nav = useMemo<NavMethods>(() => {
+    return {
+      goTo,
+      goBack,
+    };
+  }, [goTo, goBack]);
 
   useEffect(() => {
-    function onHashChange() {
-      hashChanged();
-      const pos = getHashPos();
-      if (pos >= stack.current.length) {
-        history.back();
-      } else {
-        setScreens({
-          activeScreen: stack.current[pos]?.elem ?? <div />,
-          prevScreen: stack.current[pos - 1]?.elem,
-        });
-      }
-    }
+    function showScreenAtHashPos() {
+      resolveGoBack.current?.();
+      resolveGoBack.current = undefined;
 
-    function onBeforeUnload(event: BeforeUnloadEvent) {
-      event.preventDefault();
+      const pos = getHashPos();
+      const isPastEndOfStack = pos >= stackRef.current.length;
+
+      if (isPastEndOfStack) {
+        history.back();
+        return;
+      }
+
+      setScreens({
+        activeScreen: stackRef.current[pos]?.elem ?? <div />,
+        prevScreen: stackRef.current[pos - 1]?.elem,
+      });
     }
 
     location.replace('#0');
-    addEventListener('hashchange', onHashChange);
-    addEventListener('beforeunload', onBeforeUnload);
+    addEventListener('hashchange', showScreenAtHashPos);
+    addEventListener('beforeunload', preventUnload);
+
     return () => {
-      removeEventListener('hashchange', onHashChange);
-      removeEventListener('beforeunload', onBeforeUnload);
+      removeEventListener('hashchange', showScreenAtHashPos);
+      removeEventListener('beforeunload', preventUnload);
     };
   }, []);
 
-  const pos = Math.min(getHashPos(), stack.current.length - 1);
+  const activePos = Math.min(getHashPos(), stack.length - 1);
+  const reachableStack = stack.slice(0, activePos + 1);
+
   return (
-    <NavContext value={nav.current}>
+    <NavContext value={nav}>
       <ScreensContext value={screens}>
-        {stack.current.slice(0, pos + 1).map(({ elem, key }, idx) => {
-          const hidden = idx !== pos;
-          return (
-            <article key={key} hidden={hidden}>
-              {elem}
-            </article>
-          );
-        })}
+        {reachableStack.map(({ elem, key }, pos) => (
+          <article key={key} hidden={pos !== activePos}>
+            {elem}
+          </article>
+        ))}
       </ScreensContext>
     </NavContext>
   );

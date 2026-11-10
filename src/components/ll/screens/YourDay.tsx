@@ -9,33 +9,34 @@ import BookingListing from '../BookingListing';
 import ModifyButton from '../ModifyButton';
 import NoPlans from '../NoPlans';
 
-export default function YourDay({
-  date,
-  unmodifiable,
-}: {
+type YourDayProps = {
   date: string;
   unmodifiable?: boolean;
-}) {
+};
+
+// Lists the guest's plans for one park day.
+export default function YourDay({ date, unmodifiable }: YourDayProps) {
   const { plans } = use(PlansContext);
-  const dayPlans = plans.filter(b => parkDate(b.start) === date);
-  const parks = [...new Set(dayPlans.map(b => b.park))];
-  const nonAprPlans = dayPlans.filter(b => b.type !== 'APR');
+
+  const dayPlans = plans.filter(plan => parkDate(plan.start) === date);
+  const listedPlans = dayPlans.filter(plan => plan.type !== 'APR');
+  const [firstPlan] = dayPlans;
 
   return (
     <Screen
       title="Your Day"
       subhead={<Day>{date}</Day>}
-      theme={parks[0]?.theme}
+      theme={firstPlan?.park.theme}
     >
-      {nonAprPlans && nonAprPlans.length > 0 ? (
+      {listedPlans.length > 0 ? (
         <ul className="dividers">
-          {nonAprPlans.map(b => (
-            <li key={b.id}>
+          {listedPlans.map(plan => (
+            <li key={plan.id}>
               <BookingListing
                 details
-                booking={b}
+                booking={plan}
                 button={
-                  !unmodifiable && <ModifyButton booking={b} type="small" />
+                  !unmodifiable && <ModifyButton booking={plan} type="small" />
                 }
                 unmodifiable={unmodifiable}
               />

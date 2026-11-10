@@ -1,11 +1,15 @@
-import { useEffect, useState } from 'react';
+import { FC, useCallback, useEffect, useState } from 'react';
 
-import { ReauthNeeded, authStore } from '@/api/auth';
+import { AuthData, ReauthNeeded, authStore } from '@/api/auth';
 import { InvalidOrigin } from '@/api/client';
 import { LLClient } from '@/api/ll';
-import { Resort, loadResort } from '@/api/resort';
+import { Resort, ResortId, loadResort } from '@/api/resort';
 import { VQClient } from '@/api/vq';
-import ClientsContext, { createClients } from '@/contexts/ClientsContext';
+import { siteUrl } from '@/config';
+import ClientsContext, {
+  Clients,
+  createClients,
+} from '@/contexts/ClientsContext';
 import ResortContext from '@/contexts/ResortContext';
 import { DateTime } from '@/datetime';
 import useDisclaimer from '@/hooks/useDisclaimer';
@@ -19,84 +23,163 @@ import BGClient from './vq/BGClient';
 
 export const NEWS_VERSION = 0;
 
-function disableDoubleTapZoom() {
-  document.body.addEventListener('click', () => null);
+const TIME_ZONES: Record<ResortId, string> = {
+  WDW: 'America/New_York',
+  DLR: 'America/Los_Angeles',
+};
+
+// The apps BG1 can run as. Which one runs depends on the Disney site BG1 is
+// opened on, which each app's client maps to a resort.
+const APPS = [
+  {
+    Client: LLClient,
+    Component: Merlock,
+  },
+  {
+    Client: VQClient,
+    Component: BGClient,
+  },
+];
+
+type LoadedApp = {
+  Component: FC;
+  resort: Resort;
+  clients: Clients;
+};
+
+// Returns the app for the site BG1 is opened on, or undefined when no app
+// runs on this site.
+async function loadApp(): Promise<LoadedApp | undefined> {
+  for (const { Client, Component } of APPS) {
+    try {
+      const resort = await loadResort(Client.originToResortId(origin));
+
+      return {
+        Component,
+        resort,
+        clients: createClients(resort),
+      };
+    } catch (error) {
+      if (!(error instanceof InvalidOrigin)) {
+        throw error;
+      }
+    }
+  }
+
+  return undefined;
 }
 
+function isReauthNeeded(): boolean {
+  try {
+    authStore.getData();
+  } catch (error) {
+    if (!(error instanceof ReauthNeeded)) {
+      throw error;
+    }
+
+    return true;
+  }
+
+  return false;
+}
+
+// Mobile browsers don't zoom on a double tap when the body handles clicks.
+function ignoreClick() {}
+
 export default function App() {
-  const [resort, setResort] = useState<Resort>();
-  const [content, setContent] = useState(<div />);
+  const [app, setApp] = useState<LoadedApp>();
+  const [isLoginRequired, setIsLoginRequired] = useState(isReauthNeeded);
   const disclaimer = useDisclaimer();
   const news = useNews(NEWS_VERSION);
-  const [loginRequired, requireLogin] = useState(() => {
-    try {
-      authStore.getData();
-    } catch (e) {
-      if (!(e instanceof ReauthNeeded)) throw e;
-      return true;
-    }
-    return false;
-  });
 
   useEffect(() => {
-    disableDoubleTapZoom();
-    authStore.onUnauthorized = () => requireLogin(true);
-    (async () => {
-      for (const [Client, Component] of [
-        [LLClient, Merlock],
-        [VQClient, BGClient],
-      ] as const) {
-        try {
-          const resort = await loadResort(Client.originToResortId(origin));
-          setResort(resort);
-          DateTime.setTimeZone(
-            {
-              WDW: 'America/New_York',
-              DLR: 'America/Los_Angeles',
-            }[resort.id]
-          );
-          setContent(
-            <ResortContext value={resort}>
-              <ClientsContext value={createClients(resort)}>
-                <Component />
-              </ClientsContext>
-            </ResortContext>
-          );
-          return;
-        } catch (error) {
-          if (!(error instanceof InvalidOrigin)) throw error;
-        }
+    document.body.addEventListener('click', ignoreClick);
+
+    return () => {
+      document.body.removeEventListener('click', ignoreClick);
+    };
+  }, []);
+
+  useEffect(() => {
+    authStore.onUnauthorized = () => setIsLoginRequired(true);
+
+    return () => {
+      authStore.onUnauthorized = () => undefined;
+    };
+  }, []);
+
+  useEffect(() => {
+    let isStale = false;
+
+    async function startApp() {
+      const loadedApp = await loadApp();
+
+      if (isStale) {
+        return;
       }
-      navigate('https://joelface.github.io/bg1/start.html');
-    })();
+
+      if (!loadedApp) {
+        navigate(siteUrl('start.html'));
+        return;
+      }
+
+      DateTime.setTimeZone(TIME_ZONES[loadedApp.resort.id]);
+      setApp(loadedApp);
+    }
+
+    startApp().catch(error => {
+      console.error(error);
+    });
+
+    return () => {
+      isStale = true;
+    };
   }, []);
 
   useEffect(() => {
     function checkAuth() {
-      if (loginRequired) return;
+      if (isLoginRequired) {
+        return;
+      }
+
       try {
         authStore.getData();
-        requireLogin(false);
       } catch {
-        requireLogin(true);
+        setIsLoginRequired(true);
       }
     }
+
     checkAuth();
+
     return onVisible(checkAuth);
-  }, [loginRequired]);
+  }, [isLoginRequired]);
+
+  const logIn = useCallback((data: AuthData) => {
+    authStore.setData(data);
+    setIsLoginRequired(false);
+  }, []);
+
+  if (disclaimer) {
+    return disclaimer;
+  }
+
+  if (news) {
+    return news;
+  }
+
+  if (!app) {
+    return <div />;
+  }
+
+  if (isLoginRequired) {
+    return <LoginForm resort={app.resort} onLogin={logIn} />;
+  }
 
   return (
-    disclaimer ||
-    news ||
-    (loginRequired && resort && (
-      <LoginForm
-        resort={resort}
-        onLogin={data => {
-          authStore.setData(data);
-          requireLogin(false);
-        }}
-      />
-    )) ||
-    content
+    <ResortContext value={app.resort}>
+      <ClientsContext value={app.clients}>
+        <app.Component />
+      </ClientsContext>
+    </ResortContext>
   );
 }

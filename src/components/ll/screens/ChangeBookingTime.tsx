@@ -16,32 +16,19 @@ import BookNewReturnTime from './BookNewReturnTime';
 import RefreshButton from './RefreshButton';
 import SelectReturnTime from './SelectReturnTime';
 
-export default function ChangeBookingTime({ booking }: { booking: LLMP }) {
-  const { goTo } = use(NavContext);
-  const rebooking = use(RebookingContext);
-  const { ll } = use(ClientsContext);
-  const { loadData, loaderElem } = useDataLoader();
-  const [offer, setOffer] = useState<Offer<LLMP>>();
+type ChangeBookingTimeProps = {
+  booking: LLMP;
+};
 
-  useEffect(() => {
-    const end = rebooking.end;
-    end();
-  }, [rebooking.end]);
+type LoadingOfferProps = {
+  booking: LLMP;
+  loaderElem: React.ReactNode;
+};
 
-  useEffect(() => {
-    loadData(async () => {
-      setOffer(await ll.offer(booking.experience, booking.guests, { booking }));
-    });
-  }, [booking, ll, loadData]);
-
-  return offer ? (
-    <SelectReturnTime
-      offer={offer}
-      onOfferChange={offer => {
-        goTo(<BookNewReturnTime offer={offer} />);
-      }}
-    />
-  ) : (
+// Stands in for SelectReturnTime, with inert buttons, until there is an offer
+// to select times from.
+function LoadingOffer({ booking, loaderElem }: LoadingOfferProps) {
+  return (
     <Screen
       title="Select Return Time"
       theme={booking.park.theme}
@@ -49,14 +36,54 @@ export default function ChangeBookingTime({ booking }: { booking: LLMP }) {
       buttons={
         <>
           <YourDayButton />
-          <RefreshButton name="Times" onClick={() => {}} />
+          <RefreshButton name="Times" onClick={() => undefined} />
         </>
       }
     >
       <h2>{booking.name}</h2>
       <LandLine land={booking.land} />
-      <ReturnTime {...booking} button={<Button type="small">Keep</Button>} />
+      <ReturnTime
+        start={booking.start}
+        end={booking.end}
+        button={<Button type="small">Keep</Button>}
+      />
       {loaderElem}
     </Screen>
+  );
+}
+
+// Lets the guest pick a new return time for an existing Lightning Lane.
+export default function ChangeBookingTime({ booking }: ChangeBookingTimeProps) {
+  const { goTo } = use(NavContext);
+  const { end: endRebooking } = use(RebookingContext);
+  const { ll } = use(ClientsContext);
+  const { loadData, loaderElem } = useDataLoader();
+  const [offer, setOffer] = useState<Offer<LLMP>>();
+
+  useEffect(() => {
+    endRebooking();
+  }, [endRebooking]);
+
+  useEffect(() => {
+    loadData(async () => {
+      const newOffer = await ll.offer(booking.experience, booking.guests, {
+        booking,
+      });
+
+      setOffer(newOffer);
+    });
+  }, [booking, ll, loadData]);
+
+  if (!offer) {
+    return <LoadingOffer booking={booking} loaderElem={loaderElem} />;
+  }
+
+  return (
+    <SelectReturnTime
+      offer={offer}
+      onOfferChange={newOffer => {
+        goTo(<BookNewReturnTime offer={newOffer} />);
+      }}
+    />
   );
 }

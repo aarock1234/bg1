@@ -1,15 +1,14 @@
-import { createContext } from 'react';
+import { ReactNode, createContext } from 'react';
 
 import { Booking } from '@/api/itinerary';
-import useDataLoader from '@/hooks/useDataLoader';
-import useThrottleable from '@/hooks/useThrottleable';
+import { Throttleable } from '@/hooks/useThrottleable';
 
-interface PlansState {
+type PlansState = {
   plans: Booking[];
-  refreshPlans: ReturnType<typeof useThrottleable>;
-  loaderElem: ReturnType<typeof useDataLoader>['loaderElem'];
+  refreshPlans: Throttleable;
+  loaderElem: ReactNode;
   plansLoaded?: boolean;
-}
+};
 
 export default createContext<PlansState>({
   plans: [],

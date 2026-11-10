@@ -34,10 +34,9 @@ describe('geolocate()', () => {
 
   it('throws error on failure', async () => {
     await withCoords(undefined, async () => {
-      await expect(geolocate()).rejects.toEqual({
-        code: 2,
-        message: 'Position unavailable',
-      });
+      await expect(geolocate()).rejects.toThrow(
+        new Error('Position unavailable')
+      );
     });
   });
 });

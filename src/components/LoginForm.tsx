@@ -2,114 +2,144 @@ import { useEffect } from 'react';
 
 import { AuthData } from '@/api/auth';
 import { Resort } from '@/api/resort';
-import { sleep } from '@/sleep';
-
-type EventListener = (result: any) => void;
-
-interface OneIdClient {
-  init: () => Promise<void>;
-  launchLogin: () => void;
-  on: (type: string, listener: EventListener) => void;
-  off: (type: string, listener: EventListener) => void;
-}
-
-declare global {
-  interface Window {
-    OneID?: {
-      get: (config: any) => OneIdClient;
-    };
-  }
-}
+import { siteUrl } from '@/config';
 
 const SCRIPT_URL = 'https://cdn.registerdisney.go.com/v4/OneID.js';
 const SCRIPT_ID = 'oneid-script';
 const WRAPPER_ID = 'oneid-wrapper';
 
-interface OneIdEventListeners {
-  login: (data: any) => void;
-  close: () => void;
+type OneIdConfig = {
+  clientId: string;
+  responderPage: string;
+};
+
+type OneIdToken = {
+  swid: string;
+  access_token: string;
+  exp: string | number;
+};
+
+type OneIdLogin = {
+  token: OneIdToken;
+};
+
+type OneIdEventType = 'login' | 'close';
+
+type OneIdClient = {
+  init(): Promise<void>;
+  launchLogin(): void;
+  on(type: 'login', listener: (login: OneIdLogin) => void): void;
+  on(type: 'close', listener: () => void): void;
+  // Removes every listener of the type.
+  off(type: OneIdEventType): void;
+};
+
+type OneIdSession = {
+  client: OneIdClient;
+  clientId: string;
+};
+
+declare global {
+  interface Window {
+    OneID?: {
+      get(config: OneIdConfig): OneIdClient;
+    };
+  }
 }
 
-class OneId {
-  protected static client: OneIdClient | undefined;
-  protected static clientId: string;
-  protected static listeners: Partial<OneIdEventListeners> = {};
+// The OneID script is loaded and its client created only once per page, no
+// matter how often the login form is shown.
+let sessionPromise: Promise<OneIdSession> | undefined;
 
-  static async launchLogin(resortId: string, onLogin: any) {
-    const client = await this.loadClient(resortId);
-    this.on('login', data => {
-      onLogin(data);
-      this.deleteGuestData();
+async function launchLogin(
+  resortId: string,
+  onLogin: (data: AuthData) => void
+): Promise<void> {
+  const { client, clientId } = await loadSession(resortId);
+
+  client.off('login');
+  client.on('login', ({ token }) => {
+    onLogin({
+      swid: token.swid,
+      accessToken: token.access_token,
+      expires: new Date(token.exp).getTime(),
     });
-    this.on('close', () => client.launchLogin());
+    deleteGuestData(clientId);
+  });
+
+  // The login form can't be dismissed: closing it opens it again.
+  client.off('close');
+  client.on('close', () => {
     client.launchLogin();
-  }
+  });
 
-  protected static async loadClient(resortId: string) {
-    if (!this.client) {
-      if (document.getElementById(SCRIPT_ID)) {
-        while (!this.client) await sleep(100);
-      } else {
-        this.loadOneIdScript();
-        while (!self.OneID) await sleep(100);
-        const os = navigator.userAgent.includes('Android') ? 'AND' : 'IOS';
-        this.clientId = `TPR-${resortId}-LBSDK.${os}`;
-        const client = self.OneID.get({
-          clientId: this.clientId,
-          responderPage: 'https://joelface.github.io/bg1/responder.html',
-        });
-        await client.init();
-        this.client = client;
-        this.deleteGuestData();
-      }
-    }
-    return this.client;
-  }
-
-  protected static loadOneIdScript() {
-    const script = document.createElement('script');
-    script.id = SCRIPT_ID;
-    script.src = SCRIPT_URL;
-    document.head.appendChild(script);
-  }
-
-  protected static on<T extends keyof OneIdEventListeners>(
-    type: T,
-    listener: OneIdEventListeners[T]
-  ) {
-    const client = OneId.client;
-    if (!client) return;
-    if (this.listeners[type]) client.off(type, this.listeners[type]);
-    this.listeners[type] = listener;
-    client.on(type, listener);
-  }
-
-  protected static deleteGuestData() {
-    localStorage.removeItem(this.clientId + '-PROD.guest');
-  }
+  client.launchLogin();
 }
 
-export default function LoginForm({
-  resort,
-  onLogin,
-}: {
+function loadSession(resortId: string): Promise<OneIdSession> {
+  sessionPromise ??= createSession(resortId);
+
+  return sessionPromise;
+}
+
+async function createSession(resortId: string): Promise<OneIdSession> {
+  await loadOneIdScript();
+
+  if (!self.OneID) {
+    throw new Error('OneID script loaded without defining OneID');
+  }
+
+  const platform = navigator.userAgent.includes('Android') ? 'AND' : 'IOS';
+  const clientId = `TPR-${resortId}-LBSDK.${platform}`;
+  const client = self.OneID.get({
+    clientId,
+    responderPage: siteUrl('responder.html'),
+  });
+
+  await client.init();
+  deleteGuestData(clientId);
+
+  return {
+    client,
+    clientId,
+  };
+}
+
+function loadOneIdScript(): Promise<void> {
+  const script = document.createElement('script');
+  script.id = SCRIPT_ID;
+  script.src = SCRIPT_URL;
+  document.head.append(script);
+
+  return new Promise(resolve => {
+    script.addEventListener('load', () => {
+      resolve();
+    });
+  });
+}
+
+// Removes the guest data that OneID keeps in local storage.
+function deleteGuestData(clientId: string) {
+  localStorage.removeItem(`${clientId}-PROD.guest`);
+}
+
+type LoginFormProps = {
   resort: Pick<Resort, 'id'>;
   onLogin: (data: AuthData) => void;
-}) {
+};
+
+// Shows Disney's own login form on top of the page. It renders nothing
+// itself.
+export default function LoginForm({ resort, onLogin }: LoginFormProps) {
   useEffect(() => {
-    OneId.launchLogin(resort.id, ({ token }: any) => {
-      onLogin({
-        swid: token.swid,
-        accessToken: token.access_token,
-        expires: new Date(token.exp).getTime(),
-      });
+    launchLogin(resort.id, onLogin).catch(error => {
+      console.error(error);
     });
   }, [resort, onLogin]);
 
   useEffect(() => {
     return () => {
-      const wrapper = document.getElementById(WRAPPER_ID);
-      wrapper?.parentNode?.removeChild(wrapper);
+      document.getElementById(WRAPPER_ID)?.remove();
     };
   }, []);
 

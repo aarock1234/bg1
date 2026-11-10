@@ -6,26 +6,31 @@ import ParkContext from '@/contexts/ParkContext';
 import RebookingContext from '@/contexts/RebookingContext';
 import ResortContext from '@/contexts/ResortContext';
 
-export default function ParkSelect(props: { className?: string }) {
+type ParkSelectProps = {
+  className?: string;
+};
+
+export default function ParkSelect(props: ParkSelectProps) {
   const { parks } = use(ResortContext);
   const { ll } = use(ClientsContext);
   const { park, setPark } = use(ParkContext);
   const rebooking = use(RebookingContext);
 
-  const parkOptions = useMemo(
-    () =>
-      new Map(
-        parks.map(park => [
-          park.id,
-          {
-            value: park,
-            icon: park.icon,
-            text: park.name,
-          },
-        ])
-      ),
-    [parks]
-  );
+  const parkOptions = useMemo(() => {
+    return new Map(
+      parks.map(park => [
+        park.id,
+        {
+          value: park,
+          icon: park.icon,
+          text: park.name,
+        },
+      ])
+    );
+  }, [parks]);
+
+  const isRebooking = !!rebooking.current;
+  const isParkLocked = isRebooking && !ll.rules.parkModify;
 
   return (
     <Select
@@ -33,7 +38,7 @@ export default function ParkSelect(props: { className?: string }) {
       options={parkOptions}
       selected={park.id}
       onChange={setPark}
-      disabled={!!rebooking.current && !ll.rules.parkModify}
+      disabled={isParkLocked}
       title="Park"
     />
   );

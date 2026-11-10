@@ -7,23 +7,34 @@ import NavContext from '@/contexts/NavContext';
 
 import BookExperience from '../BookExperience';
 
-export default function LLButton({
-  experience,
-}: {
+type LLButtonProps = {
   experience: FlexExperience;
-}) {
+};
+
+export default function LLButton({ experience }: LLButtonProps) {
   const { goTo } = use(NavContext);
-  const { flex, standby } = experience;
+
+  function showBookingScreen() {
+    goTo(<BookExperience experience={experience} />);
+  }
 
   return (
-    <Button onClick={() => goTo(<BookExperience experience={experience} />)}>
-      {standby.unavailableReason === 'CLOSED' ? (
-        'Book'
-      ) : flex.nextAvailableTime ? (
-        <Time time={flex.nextAvailableTime} />
-      ) : (
-        'none'
-      )}
+    <Button onClick={showBookingScreen}>
+      <NextReturnTime experience={experience} />
     </Button>
   );
+}
+
+function NextReturnTime({ experience }: LLButtonProps) {
+  const { flex, standby } = experience;
+
+  if (standby.unavailableReason === 'CLOSED') {
+    return 'Book';
+  }
+
+  if (!flex.nextAvailableTime) {
+    return 'none';
+  }
+
+  return <Time time={flex.nextAvailableTime} />;
 }

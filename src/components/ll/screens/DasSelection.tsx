@@ -23,120 +23,150 @@ import BookingDetails from './BookingDetails';
 import DasExperienceList from './DasExperienceList';
 import Home from './Home';
 
-export default function DasSelection({
-  park,
-  party,
-}: {
+const BOOKING_FAILURE_MESSAGES = {
+  ConflictsError: 'Some guests not eligible',
+  ExperienceUnavailable: 'Experience currently unavailable',
+};
+
+type DasSelectionProps = {
   park: Park;
   party: DasParty;
-}) {
+};
+
+type ExperienceChoiceProps = {
+  experience: Experience | undefined;
+  onChoose: () => void;
+};
+
+// Shows the chosen experience with a button to change it, or a button to
+// choose one.
+function ExperienceChoice({ experience, onChoose }: ExperienceChoiceProps) {
+  if (!experience) {
+    return (
+      <div className="mt-3 text-center">
+        <Button onClick={onChoose}>Select Experience</Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center mt-3">
+      <div className="text-lg font-semibold truncate">{experience.name}</div>
+      <div className="ml-3">
+        <Button type="small" onClick={onChoose}>
+          Change
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// The party's guests who are selected to begin with: as many as the party's
+// selection limit allows, starting with the DAS guest.
+function initiallySelectedGuests(party: DasParty): Set<Guest> {
+  const partyGuests = [party.primaryGuest, ...party.linkedGuests];
+
+  return new Set(partyGuests.slice(0, party.selectionLimit));
+}
+
+// Requests a DAS return time for a party at an experience of their choice.
+export default function DasSelection({ park, party }: DasSelectionProps) {
   const { goTo, goBack } = use(NavContext);
   const resort = use(ResortContext);
   const { das } = use(ClientsContext);
   const { refreshPlans } = use(PlansContext);
-  const [experience, setExperience] = useState<Experience>();
-  const [selected, setSelected] = useState<Set<Guest>>(
-    new Set(
-      [party.primaryGuest, ...party.linkedGuests].slice(0, party.selectionLimit)
-    )
-  );
-  const [conflicts, setConflicts] = useState<EligibilityConflicts>({});
   const { loadData, loaderElem } = useDataLoader();
+  const [experience, setExperience] = useState<Experience>();
+  const [selected, setSelected] = useState(() => {
+    return initiallySelectedGuests(party);
+  });
+  const [conflicts, setConflicts] = useState<EligibilityConflicts>({});
+
+  function chooseExperience() {
+    goTo(
+      <DasExperienceList
+        park={park}
+        onSelect={chosenExperience => {
+          setExperience(chosenExperience);
+          goBack();
+        }}
+      />
+    );
+  }
+
+  function toggleGuest(guest: Guest) {
+    const newSelected = new Set(selected);
+
+    if (newSelected.has(guest)) {
+      newSelected.delete(guest);
+    } else {
+      newSelected.add(guest);
+    }
+
+    setSelected(newSelected);
+  }
 
   async function book() {
-    if (!experience) return;
-    loadData(
+    if (!experience) {
+      return;
+    }
+
+    const booking = await loadData(
       async () => {
         try {
-          const booking = await das.book({
+          return await das.book({
             experience,
             primaryGuest: party.primaryGuest,
             guests: [...selected],
           });
-          refreshPlans();
-          ping(resort, 'D');
-          await goBack({ screen: Home });
-          goTo(<BookingDetails booking={booking} isNew={true} />);
-        } catch (e) {
-          if (e instanceof ConflictsError) setConflicts(e.conflicts);
-          throw e;
+        } catch (error) {
+          if (error instanceof ConflictsError) {
+            setConflicts(error.conflicts);
+          }
+
+          throw error;
         }
       },
       {
-        messages: {
-          ConflictsError: 'Some guests not eligible',
-          ExperienceUnavailable: 'Experience currently unavailable',
-        },
+        messages: BOOKING_FAILURE_MESSAGES,
       }
     );
+
+    if (!booking) {
+      return;
+    }
+
+    refreshPlans();
+    await goBack({
+      screen: Home,
+    });
+    goTo(<BookingDetails booking={booking} isNew />);
+    ping(resort, 'D');
   }
 
   return (
     <Screen title="DAS Selection" theme={park.theme}>
       <h3>Experience</h3>
-      {experience ? (
-        <div className="flex items-center mt-3">
-          <div className="text-lg font-semibold truncate">
-            {experience.name}
-          </div>
-          <div className="ml-3">
-            <Button
-              type="small"
-              onClick={() =>
-                goTo(
-                  <DasExperienceList
-                    park={park}
-                    onSelect={exp => {
-                      setExperience(exp);
-                      goBack();
-                    }}
-                  />
-                )
-              }
-            >
-              Change
-            </Button>
-          </div>
-        </div>
-      ) : (
-        <div className="mt-3 text-center">
-          <Button
-            onClick={() =>
-              goTo(
-                <DasExperienceList
-                  park={park}
-                  onSelect={experience => {
-                    setExperience(experience);
-                    goBack();
-                  }}
-                />
-              )
-            }
-          >
-            Select Experience
-          </Button>
-        </div>
-      )}
-      <h3>DAS Guest</h3>
-      <GuestList guests={[party.primaryGuest]} conflicts={conflicts} />
+      <ExperienceChoice experience={experience} onChoose={chooseExperience} />
+      <section>
+        <h3>DAS Guest</h3>
+        <GuestList guests={[party.primaryGuest]} conflicts={conflicts} />
+      </section>
       {party.linkedGuests.length > 0 && (
-        <>
+        <section>
           <h3>Additional Guests</h3>
           <GuestList
             guests={party.linkedGuests}
             selectable={{
-              isSelected: g => selected.has(g),
-              onToggle: g => {
-                selected[selected.has(g) ? 'delete' : 'add'](g);
-                setSelected(new Set(selected));
-              },
+              isSelected: guest => selected.has(guest),
+              onToggle: toggleGuest,
               limit: party.selectionLimit - 1,
             }}
             conflicts={conflicts}
           />
-        </>
+        </section>
       )}
-      <FloatingButton disabled={!party || !experience} onClick={book}>
+      <FloatingButton disabled={!experience} onClick={book}>
         Request Return Time
       </FloatingButton>
 

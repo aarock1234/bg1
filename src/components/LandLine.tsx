@@ -1,16 +1,29 @@
-interface Land {
-  name: string;
-  park?: { name: string };
-}
+// The land that groups experiences which don't belong to a real land.
+const MISCELLANEOUS_LAND_NAME = 'Miscellaneous';
 
-export default function LandLine({ land }: { land: Land }) {
+type Land = {
+  name: string;
+  park?: {
+    name: string;
+  };
+};
+
+type LandLineProps = {
+  land: Land;
+};
+
+// Shows where an experience is, as "Land ⦁ Park". A location without a park is
+// itself a park, so only its name is shown.
+export default function LandLine({ land }: LandLineProps) {
   const park = land.park ?? land;
-  if (!land.park) land = { name: '' };
+  const landName = land.park ? land.name : '';
+  const hasLandName = landName !== '' && landName !== MISCELLANEOUS_LAND_NAME;
+
   return (
     <div>
-      {land.name && land.name !== 'Miscellaneous' && (
+      {hasLandName && (
         <>
-          {land.name}{' '}
+          {landName}{' '}
           <span className="mx-0.5" aria-label="in">
             ⦁
           </span>{' '}

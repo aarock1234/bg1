@@ -1,19 +1,23 @@
 import { StrictMode } from 'react';
-import { createRoot } from 'react-dom/client';
+import { Root, createRoot } from 'react-dom/client';
 
 import App from './components/App';
+
+// How long to wait before checking again whether the page has a body.
+const BODY_CHECK_INTERVAL_MS = 100;
 
 main();
 
 function main() {
   if (!document.body) {
-    setTimeout(main, 100);
+    setTimeout(main, BODY_CHECK_INTERVAL_MS);
     return;
   }
 
   document.close();
   addViewportMeta();
   addBlankFavicon();
+
   createAppRoot().render(
     <StrictMode>
       <App />
@@ -25,16 +29,20 @@ function addViewportMeta() {
   const meta = document.createElement('meta');
   meta.name = 'viewport';
   meta.content = 'width=device-width, initial-scale=1, maximum-scale=1';
-  document.head.appendChild(meta);
+  document.head.append(meta);
 }
 
+// Keeps the browser from requesting the host site's favicon.
 function addBlankFavicon() {
   const link = document.createElement('link');
   link.rel = 'icon';
   link.href = 'data:,';
-  document.head.appendChild(link);
+  document.head.append(link);
 }
 
-function createAppRoot() {
-  return createRoot(document.body.appendChild(document.createElement('div')));
+function createAppRoot(): Root {
+  const container = document.createElement('div');
+  document.body.append(container);
+
+  return createRoot(container);
 }

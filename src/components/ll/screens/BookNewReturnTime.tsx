@@ -23,34 +23,44 @@ import BookingDetails from './BookingDetails';
 import Home from './Home';
 import SelectReturnTime from './SelectReturnTime';
 
+type BookNewReturnTimeProps = {
+  offer: Offer<LLMP>;
+};
+
+// Confirms moving an existing Lightning Lane to the offered return time.
 export default function BookNewReturnTime({
   offer: initialOffer,
-}: {
-  offer: Offer<LLMP>;
-}) {
+}: BookNewReturnTimeProps) {
   const { goTo, goBack } = use(NavContext);
-  const rebooking = use(RebookingContext);
+  const { begin: beginRebooking, end: endRebooking } = use(RebookingContext);
   const resort = use(ResortContext);
   const { ll } = use(ClientsContext);
-  const { loadData, loaderElem } = useDataLoader();
   const { refreshPlans } = use(PlansContext);
+  const { loadData, loaderElem } = useDataLoader();
   const [offer, setOffer] = useState(initialOffer);
-  const { booking } = offer;
+  const { booking, experience } = offer;
 
   useEffect(() => {
-    const begin = rebooking.begin;
-    begin(booking, true);
-    return rebooking.end;
-  }, [booking, rebooking.begin, rebooking.end]);
+    beginRebooking(booking, true);
+
+    return endRebooking;
+  }, [booking, beginRebooking, endRebooking]);
 
   function book() {
     loadData(async () => {
-      const booking = await ll.book(offer);
+      const newBooking = await ll.book(offer);
+
       refreshPlans();
-      await goBack({ screen: Home });
-      goTo(<BookingDetails booking={booking} isNew />);
+      await goBack({
+        screen: Home,
+      });
+      goTo(<BookingDetails booking={newBooking} isNew />);
       ping(resort, 'G');
     });
+  }
+
+  function selectReturnTime() {
+    goTo(<SelectReturnTime offer={offer} onOfferChange={setOffer} />);
   }
 
   return (
@@ -58,24 +68,23 @@ export default function BookNewReturnTime({
       title="Lightning Lane"
       subhead={
         <>
-          <RebookingHeader back={{ screen: BookingDetails }} />
+          <RebookingHeader
+            back={{
+              screen: BookingDetails,
+            }}
+          />
           <BookingDate booking={booking} />
         </>
       }
-      theme={offer.experience.park.theme}
+      theme={experience.park.theme}
       buttons={<YourDayButton />}
     >
-      <h2>{offer.experience.name}</h2>
-      <LandLine land={offer.experience.land} />
+      <h2>{experience.name}</h2>
+      <LandLine land={experience.land} />
       <ReturnTime
         {...offer}
         button={
-          <Button
-            type="small"
-            onClick={() => {
-              goTo(<SelectReturnTime offer={offer} onOfferChange={setOffer} />);
-            }}
-          >
+          <Button type="small" onClick={selectReturnTime}>
             Change
           </Button>
         }

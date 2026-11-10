@@ -1,21 +1,26 @@
 import { DateFormatType, formatDate } from '@/datetime';
 
-export function Day({
-  children: date,
-  type,
-  ...attrs
-}: React.HTMLProps<HTMLTimeElement> & {
+type DayProps = React.HTMLProps<HTMLTimeElement> & {
   children: string;
   type?: DateFormatType;
-}) {
+};
+
+// Shows a YYYY-MM-DD date in a readable form. Anything that isn't a valid date
+// is shown as it is.
+export function Day({ children: date, type, ...attrs }: DayProps) {
+  let formattedDate: string;
+
   try {
-    return (
-      <time {...attrs} dateTime={date}>
-        {formatDate(date, type)}
-      </time>
-    );
+    formattedDate = formatDate(date, type);
   } catch (error) {
     console.error(error);
+
     return date;
   }
+
+  return (
+    <time {...attrs} dateTime={date}>
+      {formattedDate}
+    </time>
+  );
 }

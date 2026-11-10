@@ -1,41 +1,68 @@
-import { use, useCallback, useRef } from 'react';
+import { FC, ReactNode, use, useCallback, useRef } from 'react';
 
 import NavContext from '@/contexts/NavContext';
 import TabsContext, { TabDef } from '@/contexts/TabContext';
 
-export default function withTabs<N extends string>(
-  { tabs, footer }: { tabs: TabDef<N>[]; footer: React.ReactNode },
-  Component: React.FC<{ tab: TabDef<N> }>
+type TabsConfig<Name extends string> = {
+  tabs: TabDef<Name>[];
+  footer: ReactNode;
+};
+
+type TabbedScreenProps<Name extends string> = {
+  tab: TabDef<Name>;
+};
+
+type TabbedProps<Name extends string> = {
+  tabName: Name;
+};
+
+// Turns a screen component into a set of tabs. The returned component shows
+// the screen for the tab named by `tabName`, or for the first tab when there
+// is no tab with that name.
+export default function withTabs<Name extends string>(
+  { tabs, footer }: TabsConfig<Name>,
+  Component: FC<TabbedScreenProps<Name>>
 ) {
-  return function Tabbed({ tabName }: { tabName: N }) {
+  return function Tabbed({ tabName }: TabbedProps<Name>) {
     const { goTo } = use(NavContext);
+    const scrollPosByTabName = useRef<Record<string, number>>({});
+
     const changeTab = useCallback(
-      (name: N) => {
-        if (name !== tabName) {
-          goTo(<Tabbed tabName={name} />, { replace: true });
+      (name: string) => {
+        const tab = tabs.find(tab => tab.name === name);
+
+        if (tab && tab.name !== tabName) {
+          goTo(<Tabbed tabName={tab.name} />, {
+            replace: true,
+          });
         }
       },
       [tabName, goTo]
     );
-    const scrollPos = useRef(Object.fromEntries(tabs.map(t => [t.name, 0])));
-    const active = tabs.find(({ name }) => name === tabName) ?? tabs[0];
 
-    if (!active) return null;
+    const active = tabs.find(tab => tab.name === tabName) ?? tabs[0];
+
+    if (!active) {
+      return null;
+    }
+
+    const scrollPos = {
+      get() {
+        return scrollPosByTabName.current[active.name] ?? 0;
+      },
+
+      set(pos: number) {
+        scrollPosByTabName.current[active.name] = pos;
+      },
+    };
 
     return (
       <TabsContext
         value={{
           tabs,
           active,
-          changeTab: changeTab as (tab: string) => void,
-          scrollPos: {
-            get: () => {
-              return scrollPos.current[active.name] ?? 0;
-            },
-            set: pos => {
-              scrollPos.current[active.name] = pos;
-            },
-          },
+          changeTab,
+          scrollPos,
           footer,
         }}
       >

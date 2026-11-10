@@ -1,14 +1,12 @@
 import Button from '@/components/Button';
 
-export default function Legend({
-  title,
-  children,
-  flex,
-}: {
+type LegendProps = {
   title: string;
   children: React.ReactNode;
   flex?: string;
-}) {
+};
+
+export default function Legend({ title, children, flex }: LegendProps) {
   return (
     <div className="flex justify-center mt-8">
       <div>
@@ -25,15 +23,13 @@ export default function Legend({
   );
 }
 
-export function Symbol({
-  sym,
-  def,
-  onInfo,
-}: {
+type SymbolProps = {
   sym: React.ReactNode;
   def: React.ReactNode;
   onInfo?: () => void;
-}) {
+};
+
+export function Symbol({ sym, def, onInfo }: SymbolProps) {
   return (
     <tr>
       <td className="text-center font-bold">{sym}</td>

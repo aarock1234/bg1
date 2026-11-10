@@ -2,25 +2,26 @@ import { useState } from 'react';
 
 import Clock from './Clock';
 
-export default function TimeBoard({
-  time,
-  label,
-}: {
+const UNKNOWN_TIME = '--:--:--';
+
+type TimeBoardProps = {
   label: string;
   time?: string | null;
-}) {
-  const [synced, setSynced] = useState(true);
+};
+
+export default function TimeBoard({ time, label }: TimeBoardProps) {
+  const [isSynced, setIsSynced] = useState(true);
 
   return (
     <table className="mt-4 mx-auto text-gray-500">
       <tbody>
-        <Row heading={label} time={<time>{time || '--:--:--'}</time>} />
+        <Row heading={label} time={<time>{time ?? UNKNOWN_TIME}</time>} />
         <Row
           heading="Current time"
           time={
             <>
-              <Clock onSync={setSynced} />
-              {!synced && (
+              <Clock onSync={setIsSynced} />
+              {!isSynced && (
                 <span className="text-sm font-sans font-semibold text-red">
                   {' '}
                   (unsynced)
@@ -34,13 +35,12 @@ export default function TimeBoard({
   );
 }
 
-function Row({
-  heading,
-  time,
-}: {
+type RowProps = {
   heading: React.ReactNode;
   time: React.ReactNode;
-}) {
+};
+
+function Row({ heading, time }: RowProps) {
   return (
     <tr>
       <th

@@ -1,13 +1,15 @@
-export async function geolocate(
+// Looks up the device's current position. Rejects when the position is
+// unavailable or the user doesn't allow the lookup.
+export function geolocate(
   options: PositionOptions = {}
 ): Promise<GeolocationPosition> {
   return new Promise((resolve, reject) => {
     navigator.geolocation.getCurrentPosition(
-      pos => {
-        resolve(pos);
+      position => {
+        resolve(position);
       },
       error => {
-        reject(error);
+        reject(new Error(error.message));
       },
       options
     );

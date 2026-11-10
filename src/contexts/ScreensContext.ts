@@ -1,8 +1,10 @@
-import { createContext } from 'react';
+import { ReactNode, createContext } from 'react';
 
-export interface Screens {
-  activeScreen: React.ReactNode;
-  prevScreen?: React.ReactNode;
-}
+export type Screens = {
+  activeScreen: ReactNode;
+  prevScreen?: ReactNode;
+};
 
-export default createContext<Screens>({ activeScreen: null });
+export default createContext<Screens>({
+  activeScreen: null,
+});

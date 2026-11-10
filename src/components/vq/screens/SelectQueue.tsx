@@ -12,9 +12,21 @@ import onVisible from '@/onVisible';
 
 import QueueListing from './QueueListing';
 
-const isAttraction = (queue: Queue) => queue.categoryContentId === 'attraction';
-const isActive = (queue: Queue) =>
-  queue.isAcceptingPartyCreation || queue.isAcceptingJoins;
+function isAttraction(queue: Queue): boolean {
+  return queue.categoryContentId === 'attraction';
+}
+
+function isActive(queue: Queue): boolean {
+  return queue.isAcceptingPartyCreation || queue.isAcceptingJoins;
+}
+
+// Orders active queues first, and attractions before other kinds of queue.
+function compareQueues(a: Queue, b: Queue): number {
+  return (
+    Number(isActive(b)) - Number(isActive(a)) ||
+    Number(isAttraction(b)) - Number(isAttraction(a))
+  );
+}
 
 export default function SelectQueue() {
   const { vq } = use(ClientsContext);
@@ -24,17 +36,15 @@ export default function SelectQueue() {
 
   const refreshQueues = useCallback(() => {
     loadData(async () => {
-      setQueues(
-        (await vq.getQueues()).sort(
-          (a, b) =>
-            +isActive(b) - +isActive(a) || +isAttraction(b) - +isAttraction(a)
-        )
-      );
+      const currentQueues = await vq.getQueues();
+
+      setQueues([...currentQueues].sort(compareQueues));
     });
   }, [vq, loadData]);
 
   useEffect(() => {
     refreshQueues();
+
     return onVisible(refreshQueues);
   }, [refreshQueues]);
 
@@ -53,22 +63,38 @@ export default function SelectQueue() {
         </div>
       }
     >
-      {!queues ? null : queues.length > 0 ? (
-        <ul className="dividers mt-1">
-          {queues.map(q => (
-            <li key={q.id}>
-              <QueueListing queue={q} />
-            </li>
-          ))}
-        </ul>
-      ) : (
-        !loaderElem && (
-          <p className="text-gray-500 font-semibold text-center uppercase">
-            No virtual queues found
-          </p>
-        )
-      )}
+      {queues && <QueueList queues={queues} isLoaderShown={!!loaderElem} />}
       {loaderElem}
     </Screen>
+  );
+}
+
+type QueueListProps = {
+  queues: Queue[];
+  isLoaderShown: boolean;
+};
+
+function QueueList({ queues, isLoaderShown }: QueueListProps) {
+  if (queues.length > 0) {
+    return (
+      <ul className="dividers mt-1">
+        {queues.map(queue => (
+          <li key={queue.id}>
+            <QueueListing queue={queue} />
+          </li>
+        ))}
+      </ul>
+    );
+  }
+
+  // The message stays hidden while the spinner or a flash message is shown.
+  if (isLoaderShown) {
+    return null;
+  }
+
+  return (
+    <p className="text-gray-500 font-semibold text-center uppercase">
+      No virtual queues found
+    </p>
   );
 }

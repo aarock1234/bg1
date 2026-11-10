@@ -36,16 +36,16 @@ describe('LoginForm', () => {
     render(<LoginForm onLogin={onLogin} resort={wdw} />);
     expect(self.OneID).toBeTruthy();
     if (!self.OneID) return;
+    const script = document.querySelector(
+      'script[src="https://cdn.registerdisney.go.com/v4/OneID.js"]'
+    );
+    expect(script).toBeInTheDocument();
+    script?.dispatchEvent(new Event('load'));
+    await waitFor(() => expect(launchLogin).toHaveBeenCalled());
     expect(self.OneID.get).toHaveBeenCalledWith({
       clientId: 'TPR-WDW-LBSDK.IOS',
       responderPage: 'https://joelface.github.io/bg1/responder.html',
     });
-    expect(
-      document.querySelector(
-        'script[src="https://cdn.registerdisney.go.com/v4/OneID.js"]'
-      )
-    ).toBeInTheDocument();
-    await waitFor(() => expect(launchLogin).toHaveBeenCalled());
 
     const exp = new Date('2050-01-01T00:00:00Z').getTime();
     callbacks.login!({

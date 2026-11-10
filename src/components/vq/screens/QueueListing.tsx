@@ -7,10 +7,15 @@ import NavContext from '@/contexts/NavContext';
 
 import ChooseParty from './ChooseParty';
 
-const isActive = (queue: Queue) =>
-  queue.isAcceptingPartyCreation || queue.isAcceptingJoins;
+function isActive(queue: Queue): boolean {
+  return queue.isAcceptingPartyCreation || queue.isAcceptingJoins;
+}
 
-export default function QueueListing({ queue }: { queue: Queue }) {
+type QueueListingProps = {
+  queue: Queue;
+};
+
+export default function QueueListing({ queue }: QueueListingProps) {
   const { goTo } = use(NavContext);
 
   return (
@@ -18,19 +23,7 @@ export default function QueueListing({ queue }: { queue: Queue }) {
       <h2 className="mt-0">{queue.name}</h2>
       <div className="flex items-center mt-2">
         <div className="flex-1">
-          {queue.isAcceptingJoins ? (
-            <span>Available now</span>
-          ) : queue.nextScheduledOpenTime ? (
-            <>
-              Next opening:{' '}
-              <Time
-                time={queue.nextScheduledOpenTime}
-                className="font-semibold"
-              />
-            </>
-          ) : (
-            'Check Disney app for opening times'
-          )}
+          <Availability queue={queue} />
         </div>
         <div className="pl-3">
           <Button
@@ -41,6 +34,23 @@ export default function QueueListing({ queue }: { queue: Queue }) {
           </Button>
         </div>
       </div>
+    </>
+  );
+}
+
+function Availability({ queue }: QueueListingProps) {
+  if (queue.isAcceptingJoins) {
+    return <span>Available now</span>;
+  }
+
+  if (!queue.nextScheduledOpenTime) {
+    return 'Check Disney app for opening times';
+  }
+
+  return (
+    <>
+      Next opening:{' '}
+      <Time time={queue.nextScheduledOpenTime} className="font-semibold" />
     </>
   );
 }

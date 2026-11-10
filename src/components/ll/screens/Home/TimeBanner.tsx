@@ -4,28 +4,45 @@ import { Time } from '@/components/Time';
 import ThemeContext from '@/contexts/ThemeContext';
 import { DateTime, ParkTime } from '@/datetime';
 
-export default function TimeBanner({
-  bookTime,
-  dropTime,
-}: {
+type TimeBannerProps = {
   bookTime?: ParkTime;
   dropTime?: ParkTime;
-}) {
-  return bookTime || dropTime ? (
-    <div className={`flex justify-center gap-x-10 ${use(ThemeContext).bg}`}>
+};
+
+export default function TimeBanner({ bookTime, dropTime }: TimeBannerProps) {
+  const theme = use(ThemeContext);
+
+  if (!bookTime && !dropTime) {
+    return null;
+  }
+
+  return (
+    <div className={`flex justify-center gap-x-10 ${theme.bg}`}>
       <LabeledTime label="Book" time={bookTime} />
       <LabeledTime label="Drop" time={dropTime} />
     </div>
-  ) : null;
+  );
 }
 
-function LabeledTime({ label, time }: { label?: string; time?: ParkTime }) {
-  if (!time) return null;
-  const now = DateTime.now().time.with({ second: 0 });
+type LabeledTimeProps = {
+  label?: string;
+  time?: ParkTime;
+};
+
+function LabeledTime({ label, time }: LabeledTimeProps) {
+  if (!time) {
+    return null;
+  }
+
+  const currentMinute = DateTime.now().time.with({
+    second: 0,
+  });
+  const isUpcoming = time > currentMinute;
+
   return (
     <div>
       {label}:{' '}
-      {time > now ? (
+      {isUpcoming ? (
         <Time time={time} />
       ) : (
         <time dateTime={`${time}`}>now</time>

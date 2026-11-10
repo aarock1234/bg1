@@ -8,14 +8,31 @@ import PartyContext, { Party } from '@/contexts/PartyContext';
 
 import IneligibleGuestList from '../IneligibleGuestList';
 
-export default function ModifyParty({ party }: { party: Party }) {
+type ModifyPartyProps = {
+  party: Party;
+};
+
+// Lets the guest choose which eligible guests to book for. The choice only
+// takes effect when it is confirmed.
+export default function ModifyParty({ party }: ModifyPartyProps) {
   const { eligible, ineligible, selected, experience } = party;
-  const [newParty, setNewParty] = useState<Set<Guest>>(new Set(selected));
   const { maxPartySize } = use(ClientsContext).ll.rules;
+  const [newParty, setNewParty] = useState(() => new Set<Guest>(selected));
 
   function toggleGuest(guest: Guest) {
-    newParty[newParty.has(guest) ? 'delete' : 'add'](guest);
-    setNewParty(new Set(newParty));
+    const toggledParty = new Set(newParty);
+
+    if (toggledParty.has(guest)) {
+      toggledParty.delete(guest);
+    } else {
+      toggledParty.add(guest);
+    }
+
+    setNewParty(toggledParty);
+  }
+
+  function confirmParty() {
+    party.setSelected(eligible.filter(guest => newParty.has(guest)));
   }
 
   return (
@@ -27,7 +44,7 @@ export default function ModifyParty({ party }: { party: Party }) {
         <GuestList
           guests={eligible}
           selectable={{
-            isSelected: g => newParty.has(g),
+            isSelected: guest => newParty.has(guest),
             onToggle: toggleGuest,
             limit: maxPartySize,
           }}
@@ -41,9 +58,7 @@ export default function ModifyParty({ party }: { party: Party }) {
         <FloatingButton
           back
           disabled={newParty.size === 0}
-          onClick={() => {
-            party.setSelected(eligible.filter(g => newParty.has(g)));
-          }}
+          onClick={confirmParty}
         >
           Confirm Party
         </FloatingButton>

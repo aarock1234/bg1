@@ -4,13 +4,20 @@ import { Guest, Guests } from '@/api/ll';
 
 import { Theme } from './ThemeContext';
 
+type PartyPark = {
+  name: string;
+  theme: Theme;
+};
+
+type PartyExperience = {
+  name: string;
+  park: PartyPark;
+};
+
 export interface Party extends Guests {
   selected: Guest[];
   setSelected: (guests: Guest[]) => void;
-  experience: {
-    name: string;
-    park: { name: string; theme: Theme };
-  };
+  experience: PartyExperience;
 }
 
 export default createContext<Party>({
@@ -20,6 +27,13 @@ export default createContext<Party>({
   setSelected: () => null,
   experience: {
     name: '',
-    park: { name: '', theme: { bg: '', text: '', color: '' } },
+    park: {
+      name: '',
+      theme: {
+        bg: '',
+        text: '',
+        color: '',
+      },
+    },
   },
 });

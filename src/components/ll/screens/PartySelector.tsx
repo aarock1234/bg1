@@ -8,46 +8,122 @@ import ClientsContext from '@/contexts/ClientsContext';
 import useDataLoader from '@/hooks/useDataLoader';
 import useSavedParty from '@/hooks/useSavedParty';
 
+// Orders the primary guest first, then everyone else by name.
+function comparePrimaryThenName(a: Guest, b: Guest): number {
+  const byPrimary = Number(!a.primary) - Number(!b.primary);
+
+  return byPrimary || a.name.localeCompare(b.name);
+}
+
+type ModeProps = {
+  selected: boolean;
+  onChange: () => void;
+  children: string;
+};
+
+function Mode({ selected, onChange, children }: ModeProps) {
+  return (
+    <li>
+      <label className="flex items-center mt-2">
+        <input
+          type="radio"
+          name="auto"
+          onChange={onChange}
+          checked={selected}
+          className="mr-2"
+        />{' '}
+        {children}
+      </label>
+    </li>
+  );
+}
+
+type PartyGuestsProps = {
+  // Undefined until the guests have loaded.
+  guests: Guest[] | undefined;
+  partyIds: Set<string>;
+  onPartyIdsChange: (partyIds: Set<string>) => void;
+};
+
+function PartyGuests({ guests, partyIds, onPartyIdsChange }: PartyGuestsProps) {
+  if (!guests) {
+    return null;
+  }
+
+  if (guests.length === 0) {
+    return <p className="text-red-d">No guests to select</p>;
+  }
+
+  const partyGuests = guests.filter(guest => partyIds.has(guest.id));
+  const nonpartyGuests = guests.filter(guest => !partyIds.has(guest.id));
+
+  function removeFromParty(guest: Guest) {
+    const newPartyIds = new Set(partyIds);
+    newPartyIds.delete(guest.id);
+    onPartyIdsChange(newPartyIds);
+  }
+
+  function addToParty(guest: Guest) {
+    onPartyIdsChange(new Set(partyIds).add(guest.id));
+  }
+
+  return (
+    <>
+      {partyGuests.length > 0 && (
+        <>
+          <h3>Your Party</h3>
+          <GuestList
+            guests={partyGuests}
+            selectable={{
+              isSelected: () => true,
+              onToggle: removeFromParty,
+            }}
+          />
+        </>
+      )}
+      {nonpartyGuests.length > 0 && (
+        <>
+          <h3>Add to Your Party</h3>
+          <GuestList
+            guests={nonpartyGuests}
+            selectable={{
+              isSelected: () => false,
+              onToggle: addToParty,
+            }}
+          />
+        </>
+      )}
+    </>
+  );
+}
+
+// Lets the guest choose between booking for every eligible guest and booking
+// only for a saved party. An empty saved party means everyone.
 export default function PartySelector() {
   const { ll } = use(ClientsContext);
   const { loadData, loaderElem } = useDataLoader();
   const [guests, setGuests] = useState<Guest[]>();
   const [savedPartyIds, savePartyIds] = useSavedParty();
   const [partyIds, setPartyIds] = useState(savedPartyIds);
-  const [auto, setAuto] = useState(partyIds.size === 0);
+  const [isAuto, setIsAuto] = useState(partyIds.size === 0);
 
   useEffect(() => {
     loadData(async () => {
-      const guests = await ll.guests();
-      setGuests(
-        [...guests.eligible, ...guests.ineligible].sort(
-          (a, b) => +!a.primary - +!b.primary || a.name.localeCompare(b.name)
-        )
-      );
+      const { eligible, ineligible } = await ll.guests();
+      const allGuests = [...eligible, ...ineligible];
+
+      setGuests(allGuests.sort(comparePrimaryThenName));
     });
   }, [ll, loadData]);
 
-  useEffect(() => {
-    if (auto) setPartyIds(new Set());
-  }, [auto]);
+  function bookForAllGuests() {
+    setIsAuto(true);
+    setPartyIds(new Set());
+  }
 
-  const partyGuests = guests?.filter(g => partyIds.has(g.id));
-  const nonpartyGuests = guests?.filter(g => !partyIds.has(g.id));
-
-  const Mode = (props: { auto: boolean; children: string }) => (
-    <li>
-      <label className="flex items-center mt-2">
-        <input
-          type="radio"
-          name="auto"
-          onChange={() => setAuto(props.auto)}
-          checked={auto === props.auto}
-          className="mr-2"
-        />{' '}
-        {props.children}
-      </label>
-    </li>
-  );
+  function bookForSelectedGuests() {
+    setIsAuto(false);
+  }
 
   return (
     <Screen title="Party Selection">
@@ -57,50 +133,25 @@ export default function PartySelector() {
         to limit who you book for, you can manually select your party here.
       </p>
       <ul>
-        <Mode auto={true}>Book for all eligible guests</Mode>
-        <Mode auto={false}>Only book for selected guests</Mode>
+        <Mode selected={isAuto} onChange={bookForAllGuests}>
+          Book for all eligible guests
+        </Mode>
+        <Mode selected={!isAuto} onChange={bookForSelectedGuests}>
+          Only book for selected guests
+        </Mode>
       </ul>
 
-      {auto ? null : guests?.length === 0 ? (
-        <p className="text-red-d">No guests to select</p>
-      ) : partyGuests && nonpartyGuests ? (
-        <>
-          {partyGuests.length > 0 && (
-            <>
-              <h3>Your Party</h3>
-              <GuestList
-                guests={partyGuests}
-                selectable={{
-                  isSelected: () => true,
-                  onToggle: g => {
-                    const newPartyIds = new Set(partyIds);
-                    newPartyIds.delete(g.id);
-                    setPartyIds(newPartyIds);
-                  },
-                }}
-              />
-            </>
-          )}
-          {nonpartyGuests.length > 0 && (
-            <>
-              <h3>Add to Your Party</h3>
-              <GuestList
-                guests={nonpartyGuests}
-                selectable={{
-                  isSelected: () => false,
-                  onToggle: g => {
-                    setPartyIds(new Set(partyIds).add(g.id));
-                  },
-                }}
-              />
-            </>
-          )}
-        </>
-      ) : null}
+      {!isAuto && (
+        <PartyGuests
+          guests={guests}
+          partyIds={partyIds}
+          onPartyIdsChange={setPartyIds}
+        />
+      )}
       {loaderElem}
       <FloatingButton
         back
-        disabled={!auto && partyIds.size === 0}
+        disabled={!isAuto && partyIds.size === 0}
         onClick={() => savePartyIds(partyIds)}
       >
         Save

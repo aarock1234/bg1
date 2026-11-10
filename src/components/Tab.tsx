@@ -14,13 +14,21 @@ export default function Tab({
 }: ScreenProps) {
   const { tabs, scrollPos, footer } = use(TabsContext);
 
+  // Restores the tab's scroll position when it is shown again, and keeps
+  // track of it while the tab is scrolled.
   useLayoutEffect(() => {
-    const elem = ref?.current;
-    if (!elem) return;
-    elem.scroll(0, scrollPos.get());
-    const updateScrollPos = () => scrollPos.set(elem.scrollTop);
-    elem.addEventListener('scroll', updateScrollPos);
-    return () => elem.removeEventListener('scroll', updateScrollPos);
+    const scrollElem = ref?.current;
+
+    if (!scrollElem) {
+      return;
+    }
+
+    const updateScrollPos = () => scrollPos.set(scrollElem.scrollTop);
+
+    scrollElem.scroll(0, scrollPos.get());
+    scrollElem.addEventListener('scroll', updateScrollPos);
+
+    return () => scrollElem.removeEventListener('scroll', updateScrollPos);
   }, [scrollPos, ref]);
 
   return (

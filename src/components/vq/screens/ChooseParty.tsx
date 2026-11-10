@@ -10,7 +10,11 @@ import useDataLoader from '@/hooks/useDataLoader';
 import JoinQueue from './JoinQueue';
 import QueueScreen from './QueueScreen';
 
-export default function ChooseParty({ queue }: { queue: Queue }) {
+type ChoosePartyProps = {
+  queue: Queue;
+};
+
+export default function ChooseParty({ queue }: ChoosePartyProps) {
   const { goTo } = use(NavContext);
   const { vq } = use(ClientsContext);
   const { loadData, loaderElem } = useDataLoader();
@@ -19,15 +23,24 @@ export default function ChooseParty({ queue }: { queue: Queue }) {
 
   useEffect(() => {
     loadData(async () => {
-      const guests = await vq.getLinkedGuests(queue);
-      setGuests(guests);
-      setParty(new Set(guests.filter(g => g.preselected)));
+      const linkedGuests = await vq.getLinkedGuests(queue);
+      const preselectedGuests = linkedGuests.filter(guest => guest.preselected);
+
+      setGuests(linkedGuests);
+      setParty(new Set(preselectedGuests));
     });
   }, [queue, vq, loadData]);
 
   function toggleGuest(guest: Guest) {
-    party[party.has(guest) ? 'delete' : 'add'](guest);
-    setParty(new Set(party));
+    const updatedParty = new Set(party);
+
+    if (updatedParty.has(guest)) {
+      updatedParty.delete(guest);
+    } else {
+      updatedParty.add(guest);
+    }
+
+    setParty(updatedParty);
   }
 
   return (
@@ -41,7 +54,7 @@ export default function ChooseParty({ queue }: { queue: Queue }) {
         <GuestList
           guests={guests}
           selectable={{
-            isSelected: g => party.has(g),
+            isSelected: guest => party.has(guest),
             onToggle: toggleGuest,
             limit: queue.maxPartySize,
           }}

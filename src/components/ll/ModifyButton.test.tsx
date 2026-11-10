@@ -7,7 +7,7 @@ import { NavError } from '@/contexts/NavContext';
 import ParkContext from '@/contexts/ParkContext';
 import PlansContext from '@/contexts/PlansContext';
 import RebookingContext, { Rebooking } from '@/contexts/RebookingContext';
-import { ParkTime } from '@/datetime';
+import { DateTime, ParkTime } from '@/datetime';
 import {
   TODAY,
   TOMORROW,
@@ -98,8 +98,8 @@ describe('ModifyButton', () => {
       <ModifyButtonTest
         booking={{
           ...booking,
-          start: { date: TOMORROW, time: new ParkTime(10) },
-          end: { date: TOMORROW, time: new ParkTime(11) },
+          start: new DateTime(TOMORROW, new ParkTime(10)),
+          end: new DateTime(TOMORROW, new ParkTime(11)),
         }}
         park={ak}
       />

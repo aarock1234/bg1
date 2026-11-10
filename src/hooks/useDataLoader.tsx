@@ -1,76 +1,128 @@
-import { useCallback, useTransition } from 'react';
+import { ReactNode, useCallback, useState } from 'react';
 
 import Spinner from '@/components/Spinner';
-import useFlash from '@/hooks/useFlash';
+import useFlash, { ShowFlash } from '@/hooks/useFlash';
 import { sleep } from '@/sleep';
 
-const LOAD_MIN_MS = 500;
+// Keeps the spinner up long enough to register, even when a load is instant.
+const MIN_LOAD_TIME_MS = 500;
 
-export type DataLoader = (
-  callback: (flash: ReturnType<typeof useFlash>[1]) => Promise<void>,
-  options?: {
-    messages?: {
-      error?: string;
-      request?: string;
-    } & { [httpStatusOrErrorName: string | number]: string };
-    minLoadTime?: number;
-  }
-) => Promise<void>;
+const DEFAULT_MESSAGES = {
+  error: 'Unknown error occurred',
+  request: 'Network request failed',
+};
 
-export default function useDataLoader(): {
-  loaderElem: React.ReactNode;
+// Messages to show when a load fails, by HTTP status or error name. `request`
+// covers any other failed request, and `error` anything else.
+export type FailureMessages = Partial<typeof DEFAULT_MESSAGES> &
+  Record<string | number, string>;
+
+export type LoadOptions = {
+  messages?: FailureMessages;
+  minLoadTimeMs?: number;
+};
+
+// Runs a load while showing a spinner, then flashes the outcome. A failed
+// load resolves to undefined after its message is shown; it never rejects.
+// The load can call `flash` to choose the message shown once it finishes.
+export type DataLoader = <T>(
+  load: (flash: ShowFlash) => Promise<T>,
+  options?: LoadOptions
+) => Promise<T | undefined>;
+
+type DataLoaderHook = {
   loadData: DataLoader;
-} {
-  const [isPending, startTransition] = useTransition();
+  loaderElem: ReactNode;
+};
+
+function responseStatus(error: Error): number | undefined {
+  if (!('response' in error)) {
+    return undefined;
+  }
+
+  const { response } = error;
+
+  if (typeof response !== 'object' || response === null) {
+    return undefined;
+  }
+
+  if ('status' in response && typeof response.status === 'number') {
+    return response.status;
+  }
+
+  return undefined;
+}
+
+// Returns undefined for a failure that no message describes.
+function failureMessage(
+  error: unknown,
+  messages: FailureMessages
+): string | undefined {
+  if (!(error instanceof Error)) {
+    return undefined;
+  }
+
+  const status = responseStatus(error);
+
+  if (status !== undefined) {
+    return messages[status] ?? messages.request;
+  }
+
+  return messages[error.name];
+}
+
+export default function useDataLoader(): DataLoaderHook {
+  const [activeLoads, setActiveLoads] = useState(0);
   const [flashElem, flash] = useFlash();
 
   const loadData = useCallback<DataLoader>(
-    async (callback, options = {}) => {
-      const { messages = {}, minLoadTime = LOAD_MIN_MS } = options;
-      const msgs: Required<typeof messages> = {
-        error: 'Unknown error occurred',
-        request: 'Network request failed',
-        ...messages,
+    async (load, options = {}) => {
+      const messages = {
+        ...DEFAULT_MESSAGES,
+        ...options.messages,
       };
-      flash('');
+      const minLoadTime = sleep(options.minLoadTimeMs ?? MIN_LOAD_TIME_MS);
 
-      let flashArgs: Parameters<typeof flash> = [''];
-      function setFlashArgs(...args: Parameters<typeof flash>) {
+      let flashArgs: Parameters<ShowFlash> = [''];
+      const flashWhenLoaded: ShowFlash = (...args) => {
         flashArgs = args;
-      }
+      };
 
-      return new Promise(resolve => {
-        startTransition(async () => {
-          const awaken = sleep(minLoadTime);
-          try {
-            await callback(setFlashArgs);
-          } catch (error: any) {
-            const status = error?.response?.status;
-            const { name } = error;
-            if (error instanceof Error && msgs[name]) {
-              setFlashArgs(msgs[name], 'error');
-            } else if (Number.isInteger(status)) {
-              setFlashArgs(msgs[status] ? msgs[status] : msgs.request, 'error');
-            } else {
-              console.error(error);
-              setFlashArgs(msgs.error, 'error');
-            }
-          }
-          await awaken;
-          startTransition(() => flash(...flashArgs));
-          resolve();
-        });
-      });
+      flash('');
+      setActiveLoads(count => count + 1);
+
+      try {
+        return await load(flashWhenLoaded);
+      } catch (error) {
+        const message = failureMessage(error, messages);
+
+        if (message === undefined) {
+          console.error(error);
+        }
+
+        flashArgs = [message ?? messages.error, 'error'];
+
+        return undefined;
+      } finally {
+        await minLoadTime;
+        setActiveLoads(count => count - 1);
+        flash(...flashArgs);
+      }
     },
     [flash]
   );
 
+  const isLoading = activeLoads > 0;
   const loaderElem =
-    isPending || flashElem ? (
+    isLoading || flashElem ? (
       <>
-        {isPending && <Spinner />}
+        {isLoading && <Spinner />}
         {flashElem}
       </>
     ) : null;
-  return { loadData, loaderElem };
+
+  return {
+    loadData,
+    loaderElem,
+  };
 }

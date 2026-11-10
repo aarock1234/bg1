@@ -1,6 +1,6 @@
 import { use, useCallback, useLayoutEffect, useState } from 'react';
 
-import { HourlyTimes, Offer } from '@/api/ll';
+import { HourlyTimes, Offer, OfferItineraryItem } from '@/api/ll';
 import { Overlap } from '@/api/ll/wdw';
 import Button from '@/components/Button';
 import LandLine from '@/components/LandLine';
@@ -24,24 +24,526 @@ import RefreshButton from './RefreshButton';
 
 export const FULL_AVAILABILITY_KEY = 'bg1.ll.fullAvailability';
 
+// With full availability, return times are offered in 10-minute slots.
+const SLOT_MINUTES = 10;
+const HOUR_SLOT_MINUTES = [0, 10, 20, 30, 40, 50];
+
+// A reported time this close to the offer's own time, in minutes, makes the
+// offer's time redundant in the list of reported times.
+const SAME_TIME_TOLERANCE_MINUTES = 5;
+
+// An hour that reports more times than this is assumed to be available
+// throughout.
+const MAX_TIMES_IN_PARTIAL_HOUR = 2;
+
+// How long before park close the last return time can start.
+const LAST_RETURN_MINUTES_BEFORE_CLOSE = 30;
+
+// A = Available, U = Unavailable, O = Overlaps another plan
+type AvailabilityCode = 'A' | 'U' | 'O';
+
+const AVAILABILITY_NAMES: Record<AvailabilityCode, string> = {
+  A: 'Available',
+  U: 'Unavailable',
+  O: 'Overlap',
+};
+
+type AvailabilityByTime = Map<ParkTime, AvailabilityCode>;
+
+type HourAvailability = {
+  hour: number;
+  times: AvailabilityByTime;
+};
+
+type TimeOverlap = OfferItineraryItem['overlap'];
+
+type FullAvailabilityOffer = Offer & Required<Pick<Offer, 'parkHours'>>;
+
+type SelectTime = (time: ParkTime) => Promise<void>;
+
+// Full availability is a guess that needs the park's hours, and it isn't
+// offered for shows because they only have their actual show times.
+function allowsFullAvailability(offer: Offer): offer is FullAvailabilityOffer {
+  return offer.experience.type !== 'E' && !!offer.parkHours;
+}
+
+function floorToSlot(time: ParkTime): ParkTime {
+  return time.add({
+    minutes: -(time.minute % SLOT_MINUTES),
+  });
+}
+
+function compareTimes(a: ParkTime, b: ParkTime): number {
+  return +a - +b;
+}
+
+// Treats exactly the reported times as available.
+function reportedAvailability(times: HourlyTimes): HourAvailability[] {
+  return times.flatMap(hourTimes => {
+    const [firstTime] = hourTimes;
+
+    if (!firstTime) {
+      return [];
+    }
+
+    return {
+      hour: firstTime.hour,
+      times: new Map(hourTimes.map(time => [time, 'A'])),
+    };
+  });
+}
+
+// Groups the reported times by hour, adding the offer's own time unless a
+// reported time is already close to it.
+function groupTimesByHour(
+  times: HourlyTimes,
+  offerTime: ParkTime
+): Map<number, ParkTime[]> {
+  const timesByHour = new Map<number, ParkTime[]>();
+
+  for (const hourTimes of times) {
+    const [firstTime] = hourTimes;
+
+    if (firstTime) {
+      timesByHour.set(firstTime.hour, [...hourTimes]);
+    }
+  }
+
+  const offerHourTimes = timesByHour.get(offerTime.hour) ?? [];
+  const isOfferTimeReported = offerHourTimes.some(time => {
+    const minutesApart = Math.abs(time.minute - offerTime.minute);
+
+    return minutesApart <= SAME_TIME_TOLERANCE_MINUTES;
+  });
+
+  if (!isOfferTimeReported) {
+    const timesWithOffer = [...offerHourTimes, offerTime].sort(compareTimes);
+
+    timesByHour.set(offerTime.hour, timesWithOffer);
+  }
+
+  return timesByHour;
+}
+
+// Returns the 10-minute slots of an hour that its reported times stand for.
+// A time whose own slot overlaps a plan stands for the next slot instead, if
+// that slot is still within the hour.
+function reportedSlotMinutes(
+  hour: number,
+  reportedTimes: ParkTime[],
+  canReturnAt: (time: ParkTime) => boolean
+): Set<number> {
+  const minutes = reportedTimes.flatMap(time => {
+    const slot = floorToSlot(time);
+
+    if (canReturnAt(slot)) {
+      return slot.minute;
+    }
+
+    const nextSlot = slot.add({
+      minutes: SLOT_MINUTES,
+    });
+
+    return nextSlot.hour === hour ? nextSlot.minute : [];
+  });
+
+  return new Set(minutes);
+}
+
+function countCode(times: AvailabilityByTime, code: AvailabilityCode): number {
+  return [...times.values()].filter(timeCode => timeCode === code).length;
+}
+
+function replaceCode(
+  times: AvailabilityByTime,
+  from: AvailabilityCode,
+  to: AvailabilityCode
+): void {
+  for (const [time, code] of times) {
+    if (code === from) {
+      times.set(time, to);
+    }
+  }
+}
+
+type HourOptions = {
+  hour: number;
+  reportedTimes: ParkTime[];
+
+  // Every slot that doesn't overlap a plan is assumed to be available.
+  isFullHour: boolean;
+  hasOverlaps: boolean;
+
+  // Whether a return time wouldn't overlap another plan too much.
+  canReturnAt: (time: ParkTime) => boolean;
+};
+
+function hourAvailability(options: HourOptions): AvailabilityByTime {
+  const { hour, reportedTimes, isFullHour, hasOverlaps, canReturnAt } = options;
+  const reportedMinutes = reportedSlotMinutes(hour, reportedTimes, canReturnAt);
+
+  function slotCode(slot: ParkTime): AvailabilityCode {
+    if (!canReturnAt(slot)) {
+      return 'O';
+    }
+
+    return isFullHour || reportedMinutes.has(slot.minute) ? 'A' : 'U';
+  }
+
+  const times: AvailabilityByTime = new Map();
+
+  for (const minute of HOUR_SLOT_MINUTES) {
+    const slot = new ParkTime(hour, minute);
+
+    times.set(slot, slotCode(slot));
+  }
+
+  // Overlaps hide some of the hour's reported times. If enough of what is
+  // left is available, the rest of the hour most likely is too.
+  const hasEnoughAvailable = countCode(times, 'A') * 2 >= countCode(times, 'U');
+
+  if (!isFullHour && hasOverlaps && hasEnoughAvailable) {
+    replaceCode(times, 'U', 'A');
+  }
+
+  return times;
+}
+
+// Nothing is available before the first time that is known to be. Slots that
+// overlap a plan keep saying so.
+function markUnavailableBefore(
+  times: AvailabilityByTime,
+  firstTime: ParkTime
+): void {
+  for (const [time, code] of times) {
+    if (time >= firstTime) {
+      break;
+    }
+
+    if (code === 'A') {
+      times.set(time, 'U');
+    }
+  }
+}
+
+function markUnavailableAfter(
+  times: AvailabilityByTime,
+  lastTime: ParkTime
+): void {
+  for (const [time] of times) {
+    if (time > lastTime) {
+      times.set(time, 'U');
+    }
+  }
+}
+
+// Estimates the availability of every 10-minute slot from now (or park open)
+// until park close. The Lightning Lane system reports only some of the
+// available times, so the rest is an educated guess.
+function fullAvailabilityTimes(
+  offer: Offer,
+  times: HourlyTimes
+): HourAvailability[] {
+  const firstReportedTime = times[0]?.[0];
+
+  if (!firstReportedTime || !allowsFullAvailability(offer)) {
+    return reportedAvailability(times);
+  }
+
+  const { booking } = offer;
+  const offerTime = offer.start.time;
+  const overlaps: TimeOverlap[] = offer.itinerary.map(item => item.overlap);
+
+  // Overlapping the booking being modified is fine, since it gets replaced.
+  const bookingOverlap = booking
+    ? new Overlap({
+        startTime: booking.start.time,
+        endTime: booking.end.time,
+      })
+    : undefined;
+
+  if (bookingOverlap) {
+    overlaps.push(bookingOverlap);
+  }
+
+  const timesByHour = groupTimesByHour(times, offerTime);
+  const firstReportedSlot = floorToSlot(firstReportedTime);
+  const firstTime =
+    offerTime < firstReportedSlot ? floorToSlot(offerTime) : firstReportedSlot;
+
+  const { openTime, closeTime } = offer.parkHours;
+  const isToday = parkDate(offer.start) === parkDate();
+  const startTime = isToday ? DateTime.now().time : openTime;
+  const firstHour = Math.max(startTime.hour, openTime.hour);
+  const lastHour = closeTime.hour - 1;
+  const lastTime = closeTime.add({
+    minutes: -LAST_RETURN_MINUTES_BEFORE_CLOSE,
+  });
+
+  const hours: HourAvailability[] = [];
+  let isFullHour = false;
+
+  for (let hour = firstHour; hour <= lastHour; hour++) {
+    const hourStart = new ParkTime(hour);
+    const hourEnd = new ParkTime(hour, 59);
+    const reportedTimes = timesByHour.get(hour) ?? [];
+    const hourOverlaps = overlaps.filter(overlap => {
+      return overlap.contains(hourStart) || overlap.contains(hourEnd);
+    });
+    const hasOverlaps = hourOverlaps.length > 0;
+    const endsAtParkClose = hour === lastHour && closeTime.minute === 0;
+
+    // The hour that ends at park close has fewer times to report. An hour
+    // interrupted by an overlap stays full if the hour before it was.
+    isFullHour =
+      reportedTimes.length > MAX_TIMES_IN_PARTIAL_HOUR ||
+      (endsAtParkClose && reportedTimes.length > 1) ||
+      (isFullHour && hasOverlaps);
+
+    const hourTimes = hourAvailability({
+      hour,
+      reportedTimes,
+      isFullHour,
+      hasOverlaps,
+      canReturnAt: time => {
+        return hourOverlaps.every(overlap => {
+          return !overlap.contains(time) || overlap === bookingOverlap;
+        });
+      },
+    });
+
+    if (hour === firstTime.hour) {
+      markUnavailableBefore(hourTimes, firstTime);
+    } else if (hour === lastHour) {
+      markUnavailableAfter(hourTimes, lastTime);
+    }
+
+    hours.push({
+      hour,
+      times: hourTimes,
+    });
+  }
+
+  return hours;
+}
+
+type TimeButtonsRowProps = {
+  hour: number;
+  children: React.ReactNode;
+};
+
+function TimeButtonsRow({ hour, children }: TimeButtonsRowProps) {
+  return (
+    <>
+      <h4 className="flex items-center justify-end py-1.5 pl-3 font-bold">
+        <Time time={`${hour}`} />
+      </h4>
+      <div className="flex gap-1.5 py-1.5 pl-3">{children}</div>
+    </>
+  );
+}
+
+type MinuteButtonProps = {
+  time: ParkTime;
+  code: AvailabilityCode;
+  onClick: SelectTime;
+};
+
+function MinuteButton({ time, code, onClick }: MinuteButtonProps) {
+  const theme = use(ThemeContext);
+
+  const classesByCode = {
+    A: {
+      div: `${theme.bg} text-white`,
+      button: '',
+    },
+    U: {
+      div: 'bg-gray-200 text-gray-700',
+      button: '',
+    },
+    O: {
+      div: theme.bg,
+      button: 'bg-white/75 text-black',
+    },
+  };
+  const classes = classesByCode[code];
+  const timeString = `${time}`;
+  const minuteLabel = timeString.slice(2, 5);
+
+  return (
+    <div className={`rounded-lg font-semibold overflow-hidden ${classes.div}`}>
+      <button
+        className={`px-1.75 py-0.75 border border-black/20 rounded-lg ${classes.button}`}
+        onClick={() => onClick(ParkTime.from(time))}
+        aria-label={`${AVAILABILITY_NAMES[code]}: ${time}`}
+      >
+        <time dateTime={timeString}>{minuteLabel}</time>
+      </button>
+    </div>
+  );
+}
+
+type AvailabilityTypeProps = {
+  code: AvailabilityCode;
+};
+
+// A legend entry: a sample button for an availability code, with its name.
+function AvailabilityType({ code }: AvailabilityTypeProps) {
+  return (
+    <tr className="flex flex-col items-center gap-1">
+      <td>
+        <MinuteButton
+          time={new ParkTime(0)}
+          code={code}
+          onClick={async () => undefined}
+        />
+      </td>
+      <th className="text-xs text-gray-500 font-semibold uppercase">
+        {AVAILABILITY_NAMES[code]}
+      </th>
+    </tr>
+  );
+}
+
+type TimeButtonsProps = {
+  offer: Offer;
+  times: HourlyTimes;
+  onClick: SelectTime;
+};
+
+function AvailableOnlyButtons({ times, onClick }: TimeButtonsProps) {
+  return times.map(hourTimes => {
+    const [firstTime] = hourTimes;
+
+    if (!firstTime) {
+      return null;
+    }
+
+    return (
+      <TimeButtonsRow hour={firstTime.hour} key={firstTime.hour}>
+        {hourTimes.map(time => (
+          <div key={time.toString()}>
+            <Button onClick={() => onClick(time)}>
+              <Time time={time} />
+            </Button>
+          </div>
+        ))}
+      </TimeButtonsRow>
+    );
+  });
+}
+
+function FullAvailabilityButtons({ offer, times, onClick }: TimeButtonsProps) {
+  const hours = fullAvailabilityTimes(offer, times);
+
+  return hours.map(({ hour, times: hourTimes }) => (
+    <TimeButtonsRow hour={hour} key={hour}>
+      {[...hourTimes].map(([time, code]) => (
+        <MinuteButton
+          time={time}
+          code={code}
+          onClick={onClick}
+          key={time.minute}
+        />
+      ))}
+    </TimeButtonsRow>
+  ));
+}
+
+type TimeSelectionProps = {
+  offer: Offer;
+
+  // Undefined until the times have loaded.
+  times: HourlyTimes | undefined;
+  showsFullAvailability: boolean;
+  onFullAvailabilityToggle: () => void;
+  onSelect: SelectTime;
+};
+
+function TimeSelection({
+  offer,
+  times,
+  showsFullAvailability,
+  onFullAvailabilityToggle,
+  onSelect,
+}: TimeSelectionProps) {
+  if (!times) {
+    return null;
+  }
+
+  if (times.length === 0) {
+    return <p>No other times available</p>;
+  }
+
+  const TimeButtons = showsFullAvailability
+    ? FullAvailabilityButtons
+    : AvailableOnlyButtons;
+
+  return (
+    <>
+      {allowsFullAvailability(offer) && (
+        <div className="flex items-center gap-x-4 mt-4">
+          <h3 className="mt-0">Availabile Times</h3>
+          <label className="flex items-center gap-x-2">
+            <input
+              type="checkbox"
+              checked={showsFullAvailability}
+              onChange={onFullAvailabilityToggle}
+            />{' '}
+            Show all
+          </label>
+        </div>
+      )}
+
+      <div
+        className="overflow-auto mt-2 -mx-3 grid grid-cols-[min-content_1fr]"
+        data-testid="time-buttons"
+      >
+        <TimeButtons offer={offer} times={times} onClick={onSelect} />
+      </div>
+
+      {showsFullAvailability && (
+        <Legend title="Return Time Availability" flex="gap-x-4 py-1">
+          <AvailabilityType code="A" />
+          <AvailabilityType code="O" />
+          <AvailabilityType code="U" />
+        </Legend>
+      )}
+
+      <p className="mt-8 text-sm">
+        The Lightning Lane system reports a limited subset of available return
+        times. When &quot;show all&quot; is enabled, BG1 makes some educated
+        guesses to give you more options. The closest available alternative will
+        be offered if you select a return time that doesn't actually exist.
+      </p>
+    </>
+  );
+}
+
+type SelectReturnTimeProps<B extends Offer['booking']> = {
+  offer: Offer<B>;
+  onOfferChange: (offer: Offer<B>) => void;
+};
+
 export default function SelectReturnTime<B extends Offer['booking']>({
   offer,
   onOfferChange,
-}: {
-  offer: Offer<B>;
-  onOfferChange: (offer: Offer<B>) => void;
-}) {
+}: SelectReturnTimeProps<B>) {
   const { goBack } = use(NavContext);
   const { ll } = use(ClientsContext);
   const rebooking = use(RebookingContext);
   const { loadData, loaderElem } = useDataLoader();
   const [times, setTimes] = useState<HourlyTimes>();
-  const fullAvailabilityAllowed = allowsFullAvailability(offer);
-  const [fullAvailability, setFullAvailability] = useState(
-    fullAvailabilityAllowed && kvdb.get<boolean>(FULL_AVAILABILITY_KEY)
-  );
+  const [showsFullAvailability, setShowsFullAvailability] = useState(() => {
+    const isEnabled = kvdb.get(FULL_AVAILABILITY_KEY) === true;
+
+    return allowsFullAvailability(offer) && isEnabled;
+  });
+
+  // When only a booking's time is being changed, its current return time is
+  // the one to keep, rather than the offer's.
   const { booking } = offer;
-  const bookingTimeChange = booking && !rebooking.current;
+  const currentReturnTime = booking && !rebooking.current ? booking : offer;
 
   const refreshTimes = useCallback(() => {
     loadData(async () => {
@@ -49,24 +551,35 @@ export default function SelectReturnTime<B extends Offer['booking']>({
     });
   }, [offer, ll, loadData]);
 
-  useLayoutEffect(refreshTimes, [refreshTimes]);
+  useLayoutEffect(() => {
+    refreshTimes();
+  }, [refreshTimes]);
 
-  const onButtonClick = async (time: ParkTime) => {
+  function toggleFullAvailability() {
+    const newShowsFullAvailability = !showsFullAvailability;
+
+    setShowsFullAvailability(newShowsFullAvailability);
+    kvdb.set(FULL_AVAILABILITY_KEY, newShowsFullAvailability);
+  }
+
+  async function selectTime(time: ParkTime) {
     if (time.equals(offer.start.time)) {
       await goBack();
-      onOfferChange({ ...offer, changed: false });
-    } else {
-      await loadData(async () => {
-        const newOffer = await ll.changeOfferTime(offer, time);
-        await goBack();
-        onOfferChange(newOffer);
+      onOfferChange({
+        ...offer,
+        changed: false,
       });
-    }
-  };
 
-  const TimeButtons = fullAvailability
-    ? FullAvailabilityButtons
-    : AvailableOnlyButtons;
+      return;
+    }
+
+    await loadData(async () => {
+      const newOffer = await ll.changeOfferTime(offer, time);
+
+      await goBack();
+      onOfferChange(newOffer);
+    });
+  }
 
   return (
     <Screen
@@ -79,7 +592,15 @@ export default function SelectReturnTime<B extends Offer['booking']>({
       }
       subhead={
         <>
-          <RebookingHeader back={rebooking.auto ? { screen: Home } : true} />
+          <RebookingHeader
+            back={
+              rebooking.auto
+                ? {
+                    screen: Home,
+                  }
+                : true
+            }
+          />
           <BookingDate booking={offer} />
         </>
       }
@@ -87,299 +608,23 @@ export default function SelectReturnTime<B extends Offer['booking']>({
     >
       <h2>{offer.experience.name}</h2>
       <LandLine land={offer.experience.land} />
-      {offer && (
-        <ReturnTime
-          {...(bookingTimeChange ? booking : offer)}
-          button={
-            <Button type="small" onClick={goBack}>
-              Keep
-            </Button>
-          }
-        />
-      )}
-      {!times ? null : times.length > 0 ? (
-        <>
-          {fullAvailabilityAllowed && (
-            <div className="flex items-center gap-x-4 mt-4">
-              <h3 className="mt-0">Availabile Times</h3>
-              <label className="flex items-center gap-x-2">
-                <input
-                  type="checkbox"
-                  checked={!!fullAvailability}
-                  onChange={() => {
-                    const newFullAvailability = !fullAvailability;
-                    setFullAvailability(newFullAvailability);
-                    kvdb.set<boolean>(
-                      FULL_AVAILABILITY_KEY,
-                      newFullAvailability
-                    );
-                  }}
-                />{' '}
-                Show all
-              </label>
-            </div>
-          )}
-
-          <div
-            className="overflow-auto mt-2 -mx-3 grid grid-cols-[min-content_1fr]"
-            data-testid="time-buttons"
-          >
-            <TimeButtons offer={offer} times={times} onClick={onButtonClick} />
-          </div>
-
-          {fullAvailability && (
-            <Legend title="Return Time Availability" flex="gap-x-4 py-1">
-              <AvailabilityType code="A" />
-              <AvailabilityType code="O" />
-              <AvailabilityType code="U" />
-            </Legend>
-          )}
-
-          <p className="mt-8 text-sm">
-            The Lightning Lane system reports a limited subset of available
-            return times. When &quot;show all&quot; is enabled, BG1 makes some
-            educated guesses to give you more options. The closest available
-            alternative will be offered if you select a return time that doesn't
-            actually exist.
-          </p>
-        </>
-      ) : (
-        <p>No other times available</p>
-      )}
+      <ReturnTime
+        start={currentReturnTime.start}
+        end={currentReturnTime.end}
+        button={
+          <Button type="small" onClick={goBack}>
+            Keep
+          </Button>
+        }
+      />
+      <TimeSelection
+        offer={offer}
+        times={times}
+        showsFullAvailability={showsFullAvailability}
+        onFullAvailabilityToggle={toggleFullAvailability}
+        onSelect={selectTime}
+      />
       {loaderElem}
     </Screen>
-  );
-}
-
-const AVAILABILITY_CODE_TO_NAME = {
-  A: 'Available',
-  U: 'Unavailable',
-  O: 'Overlap',
-};
-
-/**
- * A = Available, U = Unavailable, O = Overlap
- */
-type AvailabilityCode = 'A' | 'U' | 'O';
-
-function AvailabilityType({ code }: { code: 'A' | 'U' | 'O' }) {
-  return (
-    <tr className="flex flex-col items-center gap-1">
-      <td>
-        <ExampleMinuteButton code={code} />
-      </td>
-      <th className="text-xs text-gray-500 font-semibold uppercase">
-        {AVAILABILITY_CODE_TO_NAME[code]}
-      </th>
-    </tr>
-  );
-}
-
-const allowsFullAvailability = (
-  offer: Offer
-): offer is Offer & Required<Pick<Offer, 'parkHours'>> =>
-  offer.experience.type !== 'E' && !!offer.parkHours;
-
-interface TimeButtonsProps {
-  offer: Offer;
-  times: HourlyTimes;
-  onClick: (time: ParkTime) => Promise<void>;
-}
-
-function AvailableOnlyButtons({ times, onClick }: TimeButtonsProps) {
-  return times.map(times => {
-    const { hour } = times[0]!;
-    return (
-      <TimeButtonsRow hour={hour} key={hour}>
-        {times.map(t => (
-          <div key={t.toString()}>
-            <Button onClick={() => onClick(t)}>
-              <Time time={t} />
-            </Button>
-          </div>
-        ))}
-      </TimeButtonsRow>
-    );
-  });
-}
-
-function FullAvailabilityButtons({ offer, times, onClick }: TimeButtonsProps) {
-  return (fullAvailabilityTimes(offer, times) ?? []).map(({ hour, times }) => {
-    return (
-      <TimeButtonsRow hour={hour} key={hour}>
-        {[...times].map(([time, code]) => {
-          return (
-            <MinuteButton
-              time={time}
-              code={code}
-              onClick={onClick}
-              key={time.minute}
-            />
-          );
-        })}
-      </TimeButtonsRow>
-    );
-  });
-}
-
-function fullAvailabilityTimes(
-  offer: Offer,
-  times: HourlyTimes | undefined
-): { hour: number; times: Map<ParkTime, AvailabilityCode> }[] {
-  if (!times || times.length === 0 || !allowsFullAvailability(offer)) {
-    return (times ?? []).map(times => ({
-      hour: times[0]!.hour,
-      times: new Map(times.map(t => [t, 'A'])),
-    }));
-  }
-  const { booking } = offer;
-  const offerTime = offer.start.time;
-  const overlaps = offer.itinerary.map(b => b.overlap);
-  let bookingOverlap: Overlap | undefined;
-  if (booking) {
-    bookingOverlap = new Overlap({
-      startTime: booking.start.time,
-      endTime: booking.end.time,
-    });
-    overlaps.push(bookingOverlap);
-  }
-  const timesByHour = new Map(times.map(times => [times[0]!.hour, [...times]]));
-  const offerHourTimes = timesByHour.get(offerTime.hour);
-  if (!offerHourTimes) {
-    timesByHour.set(offerTime.hour, [offerTime]);
-  } else if (
-    offerHourTimes.every(t => Math.abs(t.minute - offerTime.minute) > 5)
-  ) {
-    offerHourTimes.push(offerTime);
-    offerHourTimes.sort();
-  }
-  let firstTime = floor10Min(times[0]![0]!);
-  if (offerTime < firstTime) firstTime = floor10Min(offerTime);
-  const { openTime } = offer.parkHours;
-  const firstHour = Math.max(
-    (parkDate(offer.start) === parkDate() ? DateTime.now().time : openTime)
-      .hour,
-    openTime.hour
-  );
-  const closeTime = ParkTime.from(offer.parkHours.closeTime);
-  const lastHour = closeTime.hour - 1;
-  const newTimes: { hour: number; times: Map<ParkTime, AvailabilityCode> }[] =
-    [];
-  let isFullHour = false;
-
-  for (let h = firstHour; h <= lastHour; h = (h + 1) % 24) {
-    const hourStart = new ParkTime(h);
-    const hourEnd = new ParkTime(h, 59);
-    const hourOverlaps = overlaps.filter(
-      o => o.contains(hourStart) || o.contains(hourEnd)
-    );
-    const hasAcceptableOverlap = (t: ParkTime) =>
-      hourOverlaps.every(o => !o.contains(t) || o === bookingOverlap);
-    const availableTimes = timesByHour.get(h) ?? [];
-    const availableMinutes = new Set(
-      (timesByHour.get(h) ?? []).flatMap(t => {
-        t = floor10Min(t);
-        if (hasAcceptableOverlap(t)) return t.minute;
-        t = t.add({ minutes: 10 });
-        return t.hour === h ? t.minute : [];
-      })
-    );
-    isFullHour =
-      availableTimes.length > 2 ||
-      (h === lastHour && closeTime.minute === 0 && availableTimes.length > 1) ||
-      (isFullHour && hourOverlaps.length > 0);
-
-    const hourTimes = new Map(
-      [0, 10, 20, 30, 40, 50]
-        .map(m => new ParkTime(h, m))
-        .map((t): [ParkTime, AvailabilityCode] => [
-          t,
-          !hasAcceptableOverlap(t)
-            ? 'O'
-            : isFullHour || availableMinutes.has(t.minute)
-              ? 'A'
-              : 'U',
-        ])
-    );
-
-    if (!isFullHour && hourOverlaps.length > 0) {
-      type TimesByCode = Record<AvailabilityCode, ParkTime[]>;
-      const timesByCode: TimesByCode = { A: [], O: [], U: [] };
-      for (const [time, code] of hourTimes) timesByCode[code].push(time);
-      if (timesByCode.A.length * 2 >= timesByCode.U.length) {
-        for (const t of timesByCode.U) hourTimes.set(t, 'A');
-      }
-    }
-
-    if (h === firstTime.hour) {
-      for (const [time, code] of hourTimes) {
-        if (time >= firstTime) break;
-        if (code === 'A') hourTimes.set(time, 'U');
-      }
-    } else if (h === lastHour) {
-      const lastTime = closeTime.add({ minutes: -30 });
-      for (const [time] of hourTimes) {
-        if (time > lastTime) hourTimes.set(time, 'U');
-      }
-    }
-
-    newTimes.push({ hour: h, times: hourTimes });
-  }
-
-  return newTimes;
-}
-
-const floor10Min = (time: ParkTime) => time.add({ minutes: -time.minute % 10 });
-
-function TimeButtonsRow({
-  hour,
-  children,
-}: {
-  hour: number;
-  children: React.ReactNode;
-}) {
-  const rowCls = `flex py-1.5 ${hour % 2 ? '' : ''}`;
-  return (
-    <>
-      <h4 className={`items-center justify-end pl-3 font-bold ${rowCls}`}>
-        <Time time={`${hour}`} />
-      </h4>
-      <div className={`gap-1.5 pl-3 ${rowCls}`}>{children}</div>
-    </>
-  );
-}
-
-interface MinuteButtonProps {
-  time: ParkTime;
-  code: AvailabilityCode;
-  onClick: (time: ParkTime) => Promise<void>;
-}
-
-function MinuteButton({ time, code, onClick }: MinuteButtonProps) {
-  const theme = use(ThemeContext);
-  const classes = {
-    A: { div: `${theme.bg} text-white`, button: '' },
-    U: { div: 'bg-gray-200 text-gray-700', button: '' },
-    O: { div: theme.bg, button: 'bg-white/75 text-black' },
-  }[code];
-  const timeStr = `${time}`;
-  return (
-    <div className={`rounded-lg font-semibold overflow-hidden ${classes.div}`}>
-      <button
-        className={`px-1.75 py-0.75 border border-black/20 rounded-lg ${classes.button}`}
-        onClick={() => onClick(ParkTime.from(time))}
-        aria-label={`${AVAILABILITY_CODE_TO_NAME[code]}: ${time}`}
-      >
-        <time dateTime={timeStr}>{timeStr.slice(2, 5)}</time>
-      </button>
-    </div>
-  );
-}
-
-function ExampleMinuteButton(
-  props: Omit<MinuteButtonProps, 'time' | 'onClick'>
-) {
-  return (
-    <MinuteButton time={new ParkTime(0)} onClick={async () => {}} {...props} />
   );
 }

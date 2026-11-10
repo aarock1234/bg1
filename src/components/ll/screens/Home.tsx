@@ -5,6 +5,7 @@ import ExperiencesContext from '@/contexts/ExperiencesContext';
 import ParkContext from '@/contexts/ParkContext';
 import PlansContext from '@/contexts/PlansContext';
 import RebookingContext from '@/contexts/RebookingContext';
+import { TabDef } from '@/contexts/TabContext';
 import ThemeContext from '@/contexts/ThemeContext';
 import useScreenState from '@/hooks/useScreenState';
 import CalendarIcon from '@/icons/CalendarIcon';
@@ -18,12 +19,14 @@ import SettingsButton from './Home/SettingsButton';
 import TimesGuide from './Home/TimesGuide';
 import Plans from './Plans';
 
+// Returning to the app refreshes data that is at least this old.
 const AUTO_REFRESH_MIN_MS = 60_000;
+
 export const HOME_TAB_KEY = 'bg1.tab';
 
-export interface HomeTabProps {
+export type HomeTabProps = {
   ref: React.RefObject<HTMLDivElement | null>;
-}
+};
 
 const tabs = [
   {
@@ -43,46 +46,72 @@ const tabs = [
   },
 ];
 
+type TabName = (typeof tabs)[number]['name'];
+
+const DEFAULT_TAB_NAME: TabName = 'LL';
+
 const footer = <SettingsButton />;
 
+function isTabName(name: unknown): name is TabName {
+  return tabs.some(tab => tab.name === name);
+}
+
+function getSavedTabName(): TabName {
+  const tabName = kvdb.get(HOME_TAB_KEY);
+
+  return isTabName(tabName) ? tabName : DEFAULT_TAB_NAME;
+}
+
+type ActiveTabProps = {
+  tab: TabDef<TabName>;
+};
+
+function ActiveTab({ tab }: ActiveTabProps) {
+  const { isActiveScreen } = useScreenState();
+  const rebooking = use(RebookingContext);
+  const { park } = use(ParkContext);
+  const { refreshExperiences } = use(ExperiencesContext);
+  const { refreshPlans } = use(PlansContext);
+  const ref = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    kvdb.set(HOME_TAB_KEY, tab.name);
+  }, [tab]);
+
+  useEffect(() => {
+    return onVisible(() => {
+      if (!isActiveScreen) {
+        return;
+      }
+
+      refreshExperiences(AUTO_REFRESH_MIN_MS);
+      refreshPlans(AUTO_REFRESH_MIN_MS);
+    });
+  }, [isActiveScreen, refreshExperiences, refreshPlans]);
+
+  useEffect(() => {
+    if (rebooking.current) {
+      ref.current?.scroll(0, 0);
+    }
+  }, [rebooking]);
+
+  return (
+    <ThemeContext value={park.theme}>
+      <tab.component ref={ref} />
+    </ThemeContext>
+  );
+}
+
 const Home = Object.assign(
-  withTabs({ tabs, footer }, ({ tab }) => {
-    const { isActiveScreen } = useScreenState();
-    const rebooking = use(RebookingContext);
-    const { park } = use(ParkContext);
-    const { refreshExperiences } = use(ExperiencesContext);
-    const { refreshPlans } = use(PlansContext);
-    const ref = useRef<HTMLDivElement | null>(null);
-
-    useEffect(() => {
-      kvdb.set<string>(HOME_TAB_KEY, tab.name);
-    }, [tab]);
-
-    useEffect(() => {
-      return onVisible(() => {
-        if (!isActiveScreen) return;
-        refreshExperiences(AUTO_REFRESH_MIN_MS);
-        refreshPlans(AUTO_REFRESH_MIN_MS);
-      });
-    }, [isActiveScreen, refreshExperiences, refreshPlans]);
-
-    useEffect(() => {
-      if (rebooking.current) ref.current?.scroll(0, 0);
-    }, [rebooking]);
-
-    return (
-      <ThemeContext value={park.theme}>
-        <tab.component ref={ref} />
-      </ThemeContext>
-    );
-  }),
-  {
-    getSavedTabName() {
-      const tabName = kvdb.get(HOME_TAB_KEY);
-      return tabs.find(t => t.name === tabName)
-        ? (tabName as (typeof tabs)[0]['name'])
-        : 'LL';
+  withTabs(
+    {
+      tabs,
+      footer,
     },
+    ActiveTab
+  ),
+  {
+    getSavedTabName,
   }
 );
 

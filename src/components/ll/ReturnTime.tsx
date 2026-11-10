@@ -1,10 +1,10 @@
 import ReturnWindow from './ReturnWindow';
 
-export default function ReturnTime({
-  start,
-  end,
-  button,
-}: Parameters<typeof ReturnWindow>[0] & { button?: React.ReactNode }) {
+type ReturnTimeProps = Parameters<typeof ReturnWindow>[0] & {
+  button?: React.ReactNode;
+};
+
+export default function ReturnTime({ start, end, button }: ReturnTimeProps) {
   return (
     <div className="mt-4 text-lg">
       <div className="flex items-center gap-x-3">

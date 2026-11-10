@@ -1,13 +1,13 @@
-import { createContext } from 'react';
+import { Dispatch, SetStateAction, createContext } from 'react';
 
 import { parkDate } from '@/datetime';
 
-interface BookingDateState {
+type BookingDateState = {
   bookingDate: string;
-  setBookingDate: React.Dispatch<React.SetStateAction<string>>;
-}
+  setBookingDate: Dispatch<SetStateAction<string>>;
+};
 
 export default createContext<BookingDateState>({
   bookingDate: parkDate(),
-  setBookingDate: () => {},
+  setBookingDate: () => undefined,
 });

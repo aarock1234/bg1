@@ -1,19 +1,27 @@
 import { use, useState } from 'react';
 
-import { Booking, isLLMP } from '@/api/itinerary';
+import { DasParty } from '@/api/das';
+import {
+  BoardingGroup,
+  Booking,
+  EntitledGuest,
+  LLMP,
+  isDAS,
+  isLLMP,
+} from '@/api/itinerary';
 import { Park } from '@/api/resort';
 import Alert from '@/components/Alert';
 import Button from '@/components/Button';
 import { Day } from '@/components/Day';
 import FloatingButton from '@/components/FloatingButton';
-import GuestList from '@/components/GuestList';
+import GuestList, { InfoById } from '@/components/GuestList';
 import LandLine from '@/components/LandLine';
 import Screen from '@/components/Screen';
 import ClientsContext from '@/contexts/ClientsContext';
 import DasPartiesContext from '@/contexts/DasPartiesContext';
 import NavContext from '@/contexts/NavContext';
 import ResortContext from '@/contexts/ResortContext';
-import { DEFAULT_THEME } from '@/contexts/ThemeContext';
+import { DEFAULT_THEME, Theme } from '@/contexts/ThemeContext';
 import { parkDate } from '@/datetime';
 
 import { ExperienceList } from '../ExperienceList';
@@ -23,144 +31,259 @@ import CancelGuests from './CancelGuests';
 import ChangeBookingTime from './ChangeBookingTime';
 import Home from './Home';
 
+const TITLES: Record<Booking['type'], string> = {
+  LL: 'Lightning Lane',
+  DAS: 'DAS Selection',
+  BG: 'Boarding Group',
+  APR: 'Park Pass',
+  RES: 'Reservation',
+};
+
+type Choice = NonNullable<Booking['choices']>[number];
+
+type ParkChoices = {
+  park: Park;
+  experiences: Choice[];
+};
+
+type BookingDetailsProps = {
+  booking: Booking;
+  isNew?: boolean;
+  unmodifiable?: boolean;
+};
+
+// Groups the experiences a Lightning Lane can be redeemed at by park, with the
+// booking's own park first. Parks without any choices are left out.
+function groupChoicesByPark(booking: Booking, parks: Park[]): ParkChoices[] {
+  const choicesByPark = new Map<Park, Choice[]>();
+
+  for (const park of [booking.park, ...parks]) {
+    choicesByPark.set(park, []);
+  }
+
+  for (const choice of booking.choices ?? []) {
+    choicesByPark.get(choice.park)?.push(choice);
+  }
+
+  return [...choicesByPark]
+    .filter(([, experiences]) => experiences.length > 0)
+    .map(([park, experiences]) => {
+      return {
+        park,
+        experiences,
+      };
+    });
+}
+
+// A booking with choices takes a park's theme only when every choice is in
+// that one park.
+function screenTheme(booking: Booking, parkChoices: ParkChoices[]): Theme {
+  if (!booking.choices) {
+    return booking.park.theme;
+  }
+
+  const [firstParkChoices] = parkChoices;
+
+  if (parkChoices.length === 1 && firstParkChoices) {
+    return firstParkChoices.park.theme;
+  }
+
+  return DEFAULT_THEME;
+}
+
+// Returns the guest on a DAS booking who is the primary guest of one of the
+// user's DAS parties. Without one, the booking's guests can't be cancelled.
+function findDasGuest(
+  booking: Booking,
+  dasParties: DasParty[]
+): EntitledGuest | undefined {
+  if (!isDAS(booking)) {
+    return undefined;
+  }
+
+  return booking.guests.find(guest => {
+    return dasParties.some(party => party.primaryGuest.id === guest.id);
+  });
+}
+
+// Lists how many redemptions each guest has left, for guests whose Lightning
+// Lane isn't the usual single redemption.
+function redemptionsLeftByGuestId(booking: Booking): InfoById {
+  if (booking.type !== 'LL') {
+    return {};
+  }
+
+  const guestsWithUnusualCount = booking.guests.filter(guest => {
+    return (guest.redemptions ?? 1) !== 1;
+  });
+
+  return Object.fromEntries(
+    guestsWithUnusualCount.map(guest => {
+      return [guest.id, `Redemptions left: ${guest.redemptions}`];
+    })
+  );
+}
+
+type BoardingGroupInfoProps = {
+  booking: BoardingGroup;
+};
+
+function BoardingGroupInfo({ booking }: BoardingGroupInfoProps) {
+  return (
+    <>
+      {booking.status === 'SUMMONED' && <Alert title="Boarding Group Called" />}
+      <h3>
+        Boarding Group:{' '}
+        <span className="ml-1 font-semibold">{booking.boardingGroup}</span>
+      </h3>
+      <p>
+        Check the official Disney app for return time and other virtual queue
+        information.
+      </p>
+    </>
+  );
+}
+
+type ChangeTimeButtonProps = {
+  booking: LLMP;
+};
+
+function ChangeTimeButton({ booking }: ChangeTimeButtonProps) {
+  const { goTo } = use(NavContext);
+
+  function changeBookingTime() {
+    goTo(<ChangeBookingTime booking={booking} />);
+  }
+
+  return (
+    <Button type="small" onClick={changeBookingTime}>
+      Change
+    </Button>
+  );
+}
+
+type ReplacementChoicesProps = {
+  // The name of the experience that was originally booked, if known.
+  originalName: string;
+  parkChoices: ParkChoices[];
+};
+
+function ReplacementChoices({
+  originalName,
+  parkChoices,
+}: ReplacementChoicesProps) {
+  return (
+    <>
+      <p>
+        {originalName && (
+          <>
+            <b>{originalName}</b> was temporarily unavailable during your return
+            time.{' '}
+          </>
+        )}
+        You may redeem this Lightning Lane at one of these replacement
+        experiences:
+      </p>
+      {parkChoices.map(({ park, experiences }) => (
+        <ExperienceList
+          heading={park.name}
+          experiences={experiences}
+          bg={park.theme.bg}
+          key={park.id}
+        />
+      ))}
+    </>
+  );
+}
+
 export default function BookingDetails({
   booking,
   isNew,
   unmodifiable,
-}: {
-  booking: Booking;
-  isNew?: boolean;
-  unmodifiable?: boolean;
-}) {
+}: BookingDetailsProps) {
   const { goTo, goBack } = use(NavContext);
   const { parks } = use(ResortContext);
   const { ll } = use(ClientsContext);
   const dasParties = use(DasPartiesContext);
-  const { name, land, park, choices, type, subtype, start } = booking;
-  const dasGuest =
-    type === 'DAS' && subtype === 'IN_PARK'
-      ? booking.guests.find(g =>
-          dasParties.find(p => p.primaryGuest.id === g.id)
-        )
-      : undefined;
-  const [guests, setGuests] = useState(
-    booking.cancellable && (type !== 'DAS' || dasGuest)
-      ? booking.guests
-      : undefined
+
+  const dasGuest = findDasGuest(booking, dasParties);
+  const canCancelGuests =
+    !!booking.cancellable && (booking.type !== 'DAS' || !!dasGuest);
+
+  // The guests still on the booking, tracked only when they can be cancelled.
+  const [remainingGuests, setRemainingGuests] = useState(
+    canCancelGuests ? booking.guests : undefined
   );
 
-  const choicesByPark = new Map([
-    [park as Park, []],
-    ...parks.map(
-      park => [park, []] as [Park, Required<typeof booking>['choices']]
-    ),
-  ]);
-  for (const exp of choices || []) choicesByPark.get(exp.park)?.push(exp);
+  const hasChoices = !!booking.choices;
+  const parkChoices = groupChoicesByPark(booking, parks);
+  const canChangeTime =
+    isLLMP(booking) &&
+    !unmodifiable &&
+    ll.rules.timeSelect &&
+    booking.modifiable;
 
-  const parkChoices = [...choicesByPark]
-    .filter(([, exps]) => exps.length > 0)
-    .map(([park]) => park);
-  const theme =
-    (!choices ? park : parkChoices.length === 1 ? parkChoices[0]! : {}).theme ??
-    DEFAULT_THEME;
-  const titles = {
-    LL: 'Lightning Lane',
-    DAS: 'DAS Selection',
-    BG: 'Boarding Group',
-    APR: 'Park Pass',
-    RES: 'Reservation',
-  };
+  function updateRemainingGuests(guests: EntitledGuest[]) {
+    if (guests.length > 0) {
+      setRemainingGuests(guests);
+    } else {
+      goBack();
+    }
+  }
+
+  function showPlans() {
+    return goBack({
+      screen: Home,
+      props: {
+        tabName: 'Plans',
+      },
+    });
+  }
 
   return (
     <Screen
-      title={'Your ' + titles[type]}
-      theme={theme}
+      title={`Your ${TITLES[booking.type]}`}
+      theme={screenTheme(booking, parkChoices)}
       buttons={!unmodifiable && !isNew && <ModifyButton booking={booking} />}
-      subhead={<Day>{parkDate(start)}</Day>}
+      subhead={<Day>{parkDate(booking.start)}</Day>}
     >
-      {choices ? (
+      {hasChoices ? (
         <h2>Multiple Experiences</h2>
       ) : (
         <>
-          <h2>{name}</h2>
-          {land && <LandLine land={land} />}
+          <h2>{booking.name}</h2>
+          {booking.land && <LandLine land={booking.land} />}
         </>
       )}
-      {type === 'BG' ? (
-        <>
-          {booking.status === 'SUMMONED' && (
-            <Alert title="Boarding Group Called" />
-          )}
-          <h3>
-            Boarding Group:{' '}
-            <span className="ml-1 font-semibold">{booking.boardingGroup}</span>
-          </h3>
-          <p>
-            Check the official Disney app for return time and other virtual
-            queue information.
-          </p>
-        </>
+      {booking.type === 'BG' ? (
+        <BoardingGroupInfo booking={booking} />
       ) : (
         <ReturnTime
-          {...booking}
-          button={
-            isLLMP(booking) &&
-            !unmodifiable &&
-            ll.rules.timeSelect &&
-            booking.modifiable && (
-              <Button
-                type="small"
-                onClick={() => {
-                  goTo(<ChangeBookingTime booking={booking} />);
-                }}
-              >
-                Change
-              </Button>
-            )
-          }
+          start={booking.start}
+          end={booking.end}
+          button={canChangeTime && <ChangeTimeButton booking={booking} />}
         />
       )}
-      {choices && (
-        <>
-          <p>
-            {name && (
-              <>
-                <b>{name}</b> was temporarily unavailable during your return
-                time.{' '}
-              </>
-            )}
-            You may redeem this Lightning Lane at one of these replacement
-            experiences:
-          </p>
-          {[...choicesByPark]
-            .filter(([, choices]) => choices.length > 0)
-            .map(([park, choices]) => (
-              <ExperienceList
-                heading={park.name}
-                experiences={choices}
-                bg={park.theme.bg}
-                key={park.id}
-              />
-            ))}
-        </>
+      {hasChoices && (
+        <ReplacementChoices
+          originalName={booking.name}
+          parkChoices={parkChoices}
+        />
       )}
       <div className="flex mt-4">
         <h3 className="inline mt-0">Your Party</h3>
-        {booking.cancellable && guests && (
+        {booking.cancellable && remainingGuests && (
           <Button
             type="small"
             onClick={() => {
               goTo(
                 <CancelGuests
-                  booking={{ ...booking, guests }}
-                  dasGuest={dasGuest}
-                  onCancel={remainingGuests => {
-                    if (remainingGuests.length > 0) {
-                      setGuests(remainingGuests);
-                    } else {
-                      goBack();
-                    }
+                  booking={{
+                    ...booking,
+                    guests: remainingGuests,
                   }}
+                  dasGuest={dasGuest}
+                  onCancel={updateRemainingGuests}
                 />
               );
             }}
@@ -171,22 +294,10 @@ export default function BookingDetails({
         )}
       </div>
       <GuestList
-        guests={guests || booking.guests}
-        conflicts={Object.fromEntries(
-          booking.type === 'LL'
-            ? booking.guests
-                .filter(g => (g.redemptions ?? 1) !== 1)
-                .map(g => [g.id, `Redemptions left: ${g.redemptions}`])
-            : []
-        )}
+        guests={remainingGuests ?? booking.guests}
+        conflicts={redemptionsLeftByGuestId(booking)}
       />
-      {isNew && (
-        <FloatingButton
-          onClick={() => goBack({ screen: Home, props: { tabName: 'Plans' } })}
-        >
-          Show Plans
-        </FloatingButton>
-      )}
+      {isNew && <FloatingButton onClick={showPlans}>Show Plans</FloatingButton>}
     </Screen>
   );
 }

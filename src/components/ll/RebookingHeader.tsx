@@ -7,9 +7,19 @@ import BookingListing from './BookingListing';
 
 export type Back<P> = Parameters<typeof Button<P>>[0]['back'];
 
-export default function RebookingHeader<P>({ back }: { back?: Back<P> }) {
+type RebookingHeaderProps<P> = {
+  // Where the Keep button navigates after it ends the modification.
+  back?: Back<P>;
+};
+
+// Shows the Lightning Lane being modified, with a button to keep it instead.
+export default function RebookingHeader<P>({ back }: RebookingHeaderProps<P>) {
   const rebooking = use(RebookingContext);
-  if (!rebooking.current) return null;
+
+  if (!rebooking.current) {
+    return null;
+  }
+
   return (
     <div>
       <div className="-mx-3">

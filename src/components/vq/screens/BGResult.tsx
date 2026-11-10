@@ -1,6 +1,6 @@
 import { use, useEffect, useState } from 'react';
 
-import { Guest, JoinQueueResult, Queue } from '@/api/vq';
+import { Guest, JoinQueueConflicts, JoinQueueResult, Queue } from '@/api/vq';
 import FloatingButton from '@/components/FloatingButton';
 import GuestList from '@/components/GuestList';
 import NavContext from '@/contexts/NavContext';
@@ -8,56 +8,29 @@ import NavContext from '@/contexts/NavContext';
 import QueueScreen from './QueueScreen';
 import SelectQueue from './SelectQueue';
 
+// How long the Done button stays hidden after the boarding group is shown.
 const DONE_BTN_HIDDEN_MS = 5_000;
 
-export default function BGResult({
-  queue,
-  guests,
-  result,
-}: {
+type BGResultProps = {
   queue: Queue;
   guests: Guest[];
   result: JoinQueueResult;
-}) {
-  const { boardingGroup, conflicts } = result;
-  const hasBG = boardingGroup !== null;
-  const joinedGuests = guests.filter(g => !(g.id in conflicts));
-  const failedGuests = guests.filter(g => g.id in conflicts);
-  const { goBack } = use(NavContext);
-  const [doneShown, setDoneShown] = useState(false);
+};
 
-  useEffect(() => {
-    if (hasBG) setTimeout(() => setDoneShown(true), DONE_BTN_HIDDEN_MS);
-  }, [hasBG]);
+export default function BGResult({ queue, guests, result }: BGResultProps) {
+  const { boardingGroup, conflicts } = result;
+  const joinedGuests = guests.filter(guest => !(guest.id in conflicts));
+  const failedGuests = guests.filter(guest => guest.id in conflicts);
 
   return (
     <QueueScreen queue={queue} title="Boarding Group">
-      {hasBG ? (
-        <>
-          <h3>Congratulations! 🎉</h3>
-          <p>You joined the virtual queue!</p>
-          <p className="text-lg font-semibold">
-            Boarding Group: {boardingGroup}
-          </p>
-          <GuestList guests={joinedGuests} />
-
-          {Object.keys(conflicts).length > 0 && (
-            <>
-              <p className="font-semibold">These guests could not join:</p>
-              <GuestList guests={failedGuests} conflicts={conflicts} />
-            </>
-          )}
-
-          <p>
-            Refer to the My Disney Experience app for return time and other
-            information.
-          </p>
-          {doneShown && (
-            <FloatingButton onClick={() => goBack({ screen: SelectQueue })}>
-              Done
-            </FloatingButton>
-          )}
-        </>
+      {boardingGroup !== null ? (
+        <BoardingGroupObtained
+          boardingGroup={boardingGroup}
+          joinedGuests={joinedGuests}
+          failedGuests={failedGuests}
+          conflicts={conflicts}
+        />
       ) : (
         <>
           <h3>Sorry!</h3>
@@ -66,5 +39,63 @@ export default function BGResult({
         </>
       )}
     </QueueScreen>
+  );
+}
+
+type BoardingGroupObtainedProps = {
+  boardingGroup: number;
+  joinedGuests: Guest[];
+  failedGuests: Guest[];
+  conflicts: JoinQueueConflicts;
+};
+
+function BoardingGroupObtained({
+  boardingGroup,
+  joinedGuests,
+  failedGuests,
+  conflicts,
+}: BoardingGroupObtainedProps) {
+  const { goBack } = use(NavContext);
+  const [isDoneShown, setIsDoneShown] = useState(false);
+  const hasConflicts = Object.keys(conflicts).length > 0;
+
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      setIsDoneShown(true);
+    }, DONE_BTN_HIDDEN_MS);
+
+    return () => clearTimeout(timeoutId);
+  }, []);
+
+  return (
+    <>
+      <h3>Congratulations! 🎉</h3>
+      <p>You joined the virtual queue!</p>
+      <p className="text-lg font-semibold">Boarding Group: {boardingGroup}</p>
+      <GuestList guests={joinedGuests} />
+
+      {hasConflicts && (
+        <>
+          <p className="font-semibold">These guests could not join:</p>
+          <GuestList guests={failedGuests} conflicts={conflicts} />
+        </>
+      )}
+
+      <p>
+        Refer to the My Disney Experience app for return time and other
+        information.
+      </p>
+      {isDoneShown && (
+        <FloatingButton
+          onClick={() => {
+            return goBack({
+              screen: SelectQueue,
+            });
+          }}
+        >
+          Done
+        </FloatingButton>
+      )}
+    </>
   );
 }

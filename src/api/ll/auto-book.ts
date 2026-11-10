@@ -9,6 +9,7 @@ import type {
   Guests,
   LLClient,
   LLMP,
+  Offer,
   OfferExperience,
   OfferOptions,
 } from '../ll';
@@ -22,6 +23,9 @@ const DEFAULT_POLL_INTERVAL_MS = 1000;
 // The longest wait between two checks while checks keep being interrupted.
 const MAX_BACKOFF_MS = 30_000;
 
+// What the reasons for a guest being ineligible only for now start with.
+const TOO_EARLY_PREFIX = 'TOO_EARLY';
+
 const STATUS_UNAUTHORIZED = 401;
 const STATUS_GONE = 410;
 
@@ -32,10 +36,15 @@ export type ReturnTimeRange = {
 };
 
 // Why a check didn't end in a booking: Disney had no return time to offer,
-// offered one outside the range, or the check itself went wrong.
+// offered one for only part of the party or outside the range, or the check
+// itself went wrong.
 type Miss =
   | {
       kind: 'unavailable';
+    }
+  | {
+      // Disney's offer left out some of the guests the search is for.
+      kind: 'party-incomplete';
     }
   | {
       kind: 'outside-range';
@@ -111,8 +120,30 @@ function isFinal(error: unknown): boolean {
   );
 }
 
+// Whether the offer is for everyone the search is for. Disney leaves out
+// guests who became ineligible, and booking the rest would split the party
+// without anyone having asked for that.
+function coversEveryGuest(offer: Offer, guests: Guest[]): boolean {
+  const offeredIds = new Set(offer.guests.eligible.map(guest => guest.id));
+
+  return guests.every(guest => offeredIds.has(guest.id));
+}
+
+// Whether the guest can't book only because it is too early in the day.
+function isWaitingToBeEligible(guest: Guest): boolean {
+  return (
+    guest.eligibleAfter !== undefined ||
+    guest.ineligibleReason?.startsWith(TOO_EARLY_PREFIX) === true
+  );
+}
+
+// Whether nobody in the party can book and waiting won't change that.
 function hasNoEligibleGuests(guests: Guests): boolean {
-  return guests.eligible.length === 0 && guests.ineligible.length > 0;
+  if (guests.eligible.length > 0 || guests.ineligible.length === 0) {
+    return false;
+  }
+
+  return !guests.ineligible.some(isWaitingToBeEligible);
 }
 
 // Doubles the wait after each consecutive failure, with jitter so retries
@@ -164,6 +195,13 @@ async function attemptBooking(
 
   try {
     const offer = await ll.offer(experience, guests, offerOptions);
+
+    if (!coversEveryGuest(offer, guests)) {
+      return {
+        kind: 'party-incomplete',
+      };
+    }
+
     const offeredTime = offer.start.time;
 
     if (!isWithinRange(offeredTime, range)) {

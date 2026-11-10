@@ -71,7 +71,12 @@ export type JobGuest = z.infer<typeof jobGuestSchema>;
 
 // The latest check that didn't end in a booking.
 export const lastAttemptSchema = z.object({
-  kind: z.enum(['unavailable', 'outside-range', 'interrupted']),
+  kind: z.enum([
+    'unavailable',
+    'party-incomplete',
+    'outside-range',
+    'interrupted',
+  ]),
 
   // The return time Disney offered, when it was outside the wanted range.
   offeredTime: timeSchema.optional(),

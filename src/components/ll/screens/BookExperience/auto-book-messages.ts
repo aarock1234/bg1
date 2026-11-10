@@ -23,6 +23,8 @@ export function attemptMessage(attempt: LastAttempt): string {
   switch (attempt.kind) {
     case 'unavailable':
       return 'No return times are available yet.';
+    case 'party-incomplete':
+      return "Disney's offer didn't include everyone in your party.";
     case 'outside-range':
       return attempt.offeredTime
         ? `The latest return time offered was ${formatTime(attempt.offeredTime)}, outside your range.`

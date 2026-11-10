@@ -1,4 +1,4 @@
-import { use, useCallback, useEffect, useMemo, useState } from 'react';
+import { use, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { AuthData, ReauthNeeded, authStore } from '@/api/auth';
 import { isLLMP } from '@/api/itinerary';
@@ -28,7 +28,10 @@ import ResortContext from '@/contexts/ResortContext';
 import { parkDate } from '@/datetime';
 import useDataLoader from '@/hooks/useDataLoader';
 import useScreenState from '@/hooks/useScreenState';
-import useServerJob, { ServerJobState } from '@/hooks/useServerJob';
+import useServerJob, {
+  ServerJobState,
+  isFollowingJob,
+} from '@/hooks/useServerJob';
 import { ping } from '@/ping';
 
 import BookingDate from '../BookingDate';
@@ -67,9 +70,9 @@ type AutoBookPanel = {
   state: ServerJobState;
   parkHours?: ParkHours;
   isForToday: boolean;
+  stopError: unknown;
   onStart: (range: ReturnTimeRange) => void;
   onStop: () => void;
-  onDismiss: () => void;
 };
 
 function hasReachedExperienceLimit(guests: Guests): boolean {
@@ -82,18 +85,23 @@ function hasReachedExperienceLimit(guests: Guests): boolean {
   });
 }
 
+// The server's search requests offers of its own, which makes the one on
+// screen stale, so it can't be booked by hand while a search is running or
+// may still be.
+function canBookByHand(autoBook: AutoBookPanel | undefined): boolean {
+  if (!autoBook) {
+    return true;
+  }
+
+  return !isFollowingJob(autoBook.state);
+}
+
 // Shows what the party can do next: fix its guest list, wait for
 // availability, or book the offer.
 function BookingPanel(props: BookingPanelProps) {
   const { party, offer, isModifying, autoBook } = props;
   const hasEligibleGuests = party.eligible.length > 0;
   const hasGuests = hasEligibleGuests || party.ineligible.length > 0;
-
-  // The server's search requests offers of its own, which makes the one on
-  // screen stale, so it can't be booked by hand until the search stops.
-  const isSearching =
-    autoBook?.state.kind === 'tracking' &&
-    autoBook.state.job.status === 'searching';
 
   if (!hasGuests) {
     return <NoGuestsFound onRefresh={props.onRefreshParty} />;
@@ -120,7 +128,7 @@ function BookingPanel(props: BookingPanelProps) {
     <>
       <OfferDetails offer={offer} onOfferChange={props.onOfferChange} />
       {autoBook && <AutoBook {...autoBook} />}
-      {!isSearching && (
+      {canBookByHand(autoBook) && (
         <FloatingButton onClick={props.onBook}>
           {isModifying ? 'Modify Lightning Lane' : 'Book Lightning Lane'}
         </FloatingButton>
@@ -171,6 +179,21 @@ export default function BookExperience({ experience }: BookExperienceProps) {
   const serverJob = useServerJob(experience.id, {
     onBooked: () => refreshPlans(),
   });
+  const isFollowingSearch = isFollowingJob(serverJob.state);
+  const wasFollowingSearch = useRef(isFollowingSearch);
+
+  // The server requested offers of its own while it searched, so the one on
+  // screen is stale by the time the search stops or ends. Clearing it loads
+  // a fresh one.
+  useEffect(() => {
+    const hasSearchEnded = wasFollowingSearch.current && !isFollowingSearch;
+
+    wasFollowingSearch.current = isFollowingSearch;
+
+    if (hasSearchEnded) {
+      setOffer(undefined);
+    }
+  }, [isFollowingSearch]);
 
   // Another screen may have replaced the offer while this one was in the
   // background, in which case a fresh one is needed.
@@ -388,9 +411,9 @@ export default function BookExperience({ experience }: BookExperienceProps) {
     state: serverJob.state,
     parkHours,
     isForToday: offerDate === parkDate(),
+    stopError: serverJob.stopError,
     onStart: startAutoBook,
     onStop: serverJob.stop,
-    onDismiss: serverJob.dismiss,
   };
 
   // With nobody eligible there is no offer to refresh, only the party.

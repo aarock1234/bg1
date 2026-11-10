@@ -18,6 +18,11 @@ export type {
 // How long the server may take to finish every check in a probe.
 const PROBE_TIMEOUT_MS = 60_000;
 
+// The server loads the resort's data before it answers a new search. Giving
+// up too soon would leave a search running whose token never arrived, which
+// the device couldn't stop.
+const CREATE_JOB_TIMEOUT_MS = 30_000;
+
 type ServerRequest = {
   path: string;
   method?: 'GET' | 'POST' | 'DELETE';
@@ -90,6 +95,7 @@ export function createJob(
   return request<CreateJobResponse>({
     path: 'jobs',
     data: jobRequest,
+    timeoutMs: CREATE_JOB_TIMEOUT_MS,
   });
 }
 

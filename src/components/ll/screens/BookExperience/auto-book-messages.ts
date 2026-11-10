@@ -7,9 +7,16 @@ type LastAttempt = NonNullable<JobView['lastAttempt']>;
 // gives for the reason.
 const REJECTION_MESSAGES: Record<string, string> = {
   login_expired: 'Your Disney login has expired. Sign in again to start.',
+  invalid_time_range: 'The latest time has to be after the earliest.',
   window_over: 'That time range is already over.',
   date_not_bookable: "Auto booking isn't available for that date.",
+  unknown_experience:
+    "BG1's server doesn't know this experience yet. Try again later.",
+  too_many_guests: 'That party is too large to book at once.',
 };
+
+// The status of a request that never got an answer from the server.
+const STATUS_UNREACHABLE = 0;
 
 // Describes why the server's latest check didn't book anything.
 export function attemptMessage(attempt: LastAttempt): string {
@@ -38,7 +45,15 @@ export function rejectionMessage(error: unknown): string {
 
   const message = error.code ? REJECTION_MESSAGES[error.code] : undefined;
 
-  return message ?? "BG1's server couldn't be reached. Try again in a moment.";
+  if (message) {
+    return message;
+  }
+
+  if (error.status === STATUS_UNREACHABLE) {
+    return "BG1's server couldn't be reached. Try again in a moment.";
+  }
+
+  return "BG1's server couldn't take that. Try again in a moment.";
 }
 
 // Describes the Lightning Lane a search booked, such as "Space Mountain at

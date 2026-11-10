@@ -27,9 +27,12 @@ type AutoBookProps = {
   // chosen.
   isForToday: boolean;
 
+  // Why the latest request to stop the search failed, or undefined when it
+  // didn't.
+  stopError: unknown;
+
   onStart: (range: ReturnTimeRange) => void;
   onStop: () => void;
-  onDismiss: () => void;
 };
 
 type TimeSelectProps = {
@@ -44,12 +47,20 @@ type TimeOption = {
   text: string;
 };
 
+type ProgressProps = {
+  children: React.ReactNode;
+};
+
 type SearchingProps = {
   job: JobView;
 };
 
 type OutcomeProps = {
   state: ServerJobState;
+};
+
+type StopFailureProps = {
+  error: unknown;
 };
 
 function findSlot(
@@ -73,8 +84,10 @@ function TimeSelect(props: TimeSelectProps) {
     });
   }
 
+  // A label would forward the tap that closes the menu to the button, which
+  // would open it again.
   return (
-    <label className="field">
+    <div className="field">
       <span className="field-label">{label}</span>
       <Select
         options={options}
@@ -84,7 +97,28 @@ function TimeSelect(props: TimeSelectProps) {
         disabled={disabled}
         className="w-full tabular-nums"
       />
-    </label>
+    </div>
+  );
+}
+
+function Progress({ children }: ProgressProps) {
+  return (
+    <div
+      role="status"
+      className="mt-4 flex gap-3 rounded-control border border-line-strong bg-pressed p-3"
+    >
+      <div className="spinner mt-0.5 size-4 shrink-0" />
+      <div className="min-w-0">{children}</div>
+    </div>
+  );
+}
+
+// Shown while a search handed over earlier hasn't been heard about yet.
+function Resuming() {
+  return (
+    <Progress>
+      <p className="my-0 text-[15px] font-medium">Checking on your search…</p>
+    </Progress>
   );
 }
 
@@ -92,22 +126,24 @@ function Searching({ job }: SearchingProps) {
   const { attempts, lastAttempt } = job;
 
   return (
-    <div
-      role="status"
-      className="mt-4 flex gap-3 rounded-control border border-line-strong bg-pressed p-3"
-    >
-      <div className="spinner mt-0.5 size-4 shrink-0" />
-      <div className="min-w-0">
-        <p className="my-0 text-[15px] font-medium">
-          Looking for a return time…
-        </p>
-        <p className="note mt-1 mb-0">
-          {lastAttempt && `${attemptMessage(lastAttempt)} `}
-          Checked {attempts} {attempts === 1 ? 'time' : 'times'} so far. You can
-          close BG1; it keeps looking.
-        </p>
-      </div>
-    </div>
+    <Progress>
+      <p className="my-0 text-[15px] font-medium">Looking for a return time…</p>
+      <p className="note mt-1 mb-0">
+        {lastAttempt && `${attemptMessage(lastAttempt)} `}
+        Checked {attempts} {attempts === 1 ? 'time' : 'times'} so far. You can
+        close BG1; it keeps looking.
+      </p>
+    </Progress>
+  );
+}
+
+// Shown while the search carries on because the server couldn't be told to
+// stop it.
+function StopFailure({ error }: StopFailureProps) {
+  return (
+    <Alert title="Couldn't Stop Auto Booking" className="bg-pressed">
+      <p>{rejectionMessage(error)}</p>
+    </Alert>
   );
 }
 
@@ -149,12 +185,15 @@ function Outcome({ state }: OutcomeProps) {
 // Lets the guest pick a range of return times and have BG1's server keep
 // checking until it can book one of them, even after the app is closed.
 export default function AutoBook(props: AutoBookProps) {
-  const { state, parkHours, isForToday, onStart, onStop, onDismiss } = props;
+  const { state, parkHours, isForToday, stopError, onStart, onStop } = props;
   const [chosenEarliest, setChosenEarliest] = useState<ParkTime>();
   const [chosenLatest, setChosenLatest] = useState<ParkTime>();
   const trackedJob = state.kind === 'tracking' ? state.job : undefined;
   const isSearching = trackedJob?.status === 'searching';
-  const isBusy = isSearching || state.kind === 'starting';
+
+  // Whether the server is being asked to take a search, or how one is going.
+  const isWaiting = state.kind === 'starting' || state.kind === 'resuming';
+  const isBusy = isSearching || isWaiting;
 
   const slots = returnTimeSlots({
     parkHours,
@@ -186,8 +225,6 @@ export default function AutoBook(props: AutoBookProps) {
       return;
     }
 
-    // Starting again clears the outcome of the search before it.
-    onDismiss();
     onStart(range);
   }
 
@@ -215,13 +252,15 @@ export default function AutoBook(props: AutoBookProps) {
           onChange={setChosenLatest}
         />
       </div>
+      {state.kind === 'resuming' && <Resuming />}
       {trackedJob && isSearching && <Searching job={trackedJob} />}
+      {stopError !== undefined && <StopFailure error={stopError} />}
       <Outcome state={state} />
       <Button
         type="full"
         className="mt-4"
         variant={isSearching ? 'danger' : 'secondary'}
-        disabled={state.kind === 'starting'}
+        disabled={isWaiting}
         onClick={toggleSearch}
       >
         {isSearching ? 'Stop Auto Booking' : 'Start Auto Booking'}

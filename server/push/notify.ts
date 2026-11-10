@@ -1,4 +1,4 @@
-import webPush, { WebPushError } from 'web-push';
+import { WebPushError, sendNotification } from 'web-push';
 import { z } from 'zod';
 
 import { env } from '../config/env';
@@ -72,7 +72,7 @@ export async function sendPush(
   message: PushMessage
 ): Promise<void> {
   try {
-    await webPush.sendNotification(subscription, JSON.stringify(message), {
+    await sendNotification(subscription, JSON.stringify(message), {
       vapidDetails: {
         subject: env.VAPID_SUBJECT,
         publicKey: env.VAPID_PUBLIC_KEY,

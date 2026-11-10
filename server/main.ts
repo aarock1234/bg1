@@ -4,7 +4,6 @@ import { env } from './config/env';
 import { closeDatabase, migrateDatabase } from './db/client';
 import { describeError } from './describe-error';
 import { minimumRequestsPerSecond } from './disney/pace';
-import { proxiedFetch } from './disney/proxies';
 import { createApp } from './http/app';
 import { startWorker } from './jobs/worker';
 import { logger } from './log';
@@ -24,19 +23,11 @@ async function main(): Promise<void> {
     proxyUrls: env.DISNEY_USE_PROXIES ? env.DISNEY_PROXIES : [],
   });
 
-  // The app's own requests to Disney take the same route as jobs: through a
-  // proxy when proxies are switched on, since Disney may refuse this server's
-  // own address for some requests.
-  const relayProxy = env.DISNEY_USE_PROXIES
-    ? proxiedFetch(env.DISNEY_PROXIES)
-    : undefined;
-
   let app: Awaited<ReturnType<typeof createApp>>;
 
   try {
     app = await createApp({
       proxyUrls: env.DISNEY_PROXIES,
-      relayFetch: relayProxy?.fetch,
       worker,
       vapidPublicKey: env.VAPID_PUBLIC_KEY,
     });
@@ -86,7 +77,6 @@ async function main(): Promise<void> {
 
     try {
       await worker.stop();
-      await relayProxy?.close();
       await closeDatabase();
     } catch (error) {
       logger.error(describeError(error), 'shutdown did not finish cleanly');

@@ -1,7 +1,6 @@
 import { Hono } from 'hono';
 
-import { ApiClient, appUserAgent } from '@/api/client';
-import { RESORT_IDS, type ResortId } from '@/api/resort';
+import { ApiClient } from '@/api/client';
 import { VQClient } from '@/api/vq';
 
 import { describeError } from '../describe-error';
@@ -20,18 +19,8 @@ const FORWARDED_HEADERS = [
   'x-user-id',
   'x-acf-sensor-data',
   'x-app-id',
-  'x-client-id',
-  'x-client-version',
   'x-vq-guest-app-version',
 ];
-
-// Reads which resort's app a request identifies as, from an x-app-id such as
-// DLR-IOS-8.26.1.
-function appResortId(headers: Headers): ResortId | undefined {
-  const [resortId] = (headers.get('x-app-id') ?? '').split('-');
-
-  return RESORT_IDS.find(id => id === resortId);
-}
 
 // The only hosts the relay will talk to: the Disney services BG1's clients
 // use.
@@ -82,28 +71,13 @@ function forwardedHeaders(incoming: Headers): Headers {
     }
   }
 
-  // Browsers won't send the official app's User-Agent, so a request that
-  // identifies as the app is given it here.
-  const resortId = appResortId(incoming);
-
-  if (resortId) {
-    headers.set('User-Agent', appUserAgent(resortId));
-  }
-
   return headers;
 }
 
-export type RelayOptions = {
-  // Sends the relayed requests, such as through a proxy. Defaults to the
-  // global fetch, which sends them straight from this server.
-  fetch?: typeof fetch;
-};
-
 // Passes requests from the app on BG1's own site on to Disney and returns
 // Disney's answers. Browsers won't let that page call Disney directly.
-export function createRelay(options: RelayOptions = {}): Hono {
+export function createRelay(): Hono {
   const relay = new Hono();
-  const send = options.fetch ?? fetch;
 
   relay.all('/:host/*', async context => {
     const host = context.req.param('host');
@@ -133,7 +107,7 @@ export function createRelay(options: RelayOptions = {}): Hono {
     try {
       // A redirect is passed back as it is instead of being followed, which
       // could take the request to a host outside the list.
-      const response = await send(target, {
+      const response = await fetch(target, {
         method,
         headers: forwardedHeaders(context.req.raw.headers),
         body: METHODS_WITHOUT_BODY.has(method)

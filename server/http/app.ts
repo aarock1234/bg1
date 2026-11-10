@@ -31,10 +31,6 @@ const APP_PATH = '/bg1';
 type AppOptions = {
   proxyUrls: string[];
 
-  // Sends the requests the app relays to Disney, such as through a proxy.
-  // Defaults to sending them straight from this server.
-  relayFetch?: typeof fetch;
-
   // Runs the auto-book jobs the API creates.
   worker: Pick<Worker, 'wake' | 'cancel'>;
 
@@ -71,12 +67,7 @@ function createApi(options: AppOptions): Hono {
     })
   );
 
-  api.route(
-    '/relay',
-    createRelay({
-      fetch: options.relayFetch,
-    })
-  );
+  api.route('/relay', createRelay());
 
   api.post('/sensor-data', async context => {
     return context.text(await fetchTokenFromService());

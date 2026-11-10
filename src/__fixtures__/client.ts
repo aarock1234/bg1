@@ -1,5 +1,5 @@
 import { authStore } from '@/api/auth';
-import { appIdentityHeaders } from '@/api/client';
+import { APP_VERSION } from '@/api/client';
 import { fetchJson } from '@/fetch';
 
 jest.mock('@/fetch');
@@ -58,7 +58,7 @@ export function respond(...responses: ReturnType<typeof response>[]) {
 function sensorDataHeaders(): Record<string, string> {
   return {
     'x-acf-sensor-data': sensorDataToken,
-    ...appIdentityHeaders('WDW'),
+    'x-app-id': `WDW-IOS-${APP_VERSION}`,
   };
 }
 

@@ -54,10 +54,6 @@ declare global {
 let sessionPromise: Promise<OneIdSession> | undefined;
 
 function toAuthData(token: OneIdToken): AuthData {
-  // Temporary: shows which fields Disney's login provides (names only), to
-  // find out whether a login can be refreshed. Remove once that is known.
-  console.info('oneid token fields:', Object.keys(token).join(', '));
-
   const authData: AuthData = {
     swid: token.swid,
     accessToken: token.access_token,

@@ -2,6 +2,7 @@ import { serve } from '@hono/node-server';
 
 import { env } from './config/env';
 import { closeDatabase, migrateDatabase } from './db/client';
+import { describeError } from './describe-error';
 import { minimumRequestsPerSecond } from './disney/pace';
 import { createApp } from './http/app';
 import { startWorker } from './jobs/worker';
@@ -54,12 +55,7 @@ async function main(): Promise<void> {
   function closeServer(): void {
     server.close(error => {
       if (error) {
-        logger.error(
-          {
-            err: error,
-          },
-          'server did not close cleanly'
-        );
+        logger.error(describeError(error), 'server did not close cleanly');
         process.exitCode = 1;
       }
     });
@@ -82,12 +78,7 @@ async function main(): Promise<void> {
       await worker.stop();
       await closeDatabase();
     } catch (error) {
-      logger.error(
-        {
-          err: error,
-        },
-        'shutdown did not finish cleanly'
-      );
+      logger.error(describeError(error), 'shutdown did not finish cleanly');
       process.exitCode = 1;
     }
   }
@@ -99,12 +90,7 @@ async function main(): Promise<void> {
 }
 
 main().catch(async (error: unknown) => {
-  logger.fatal(
-    {
-      err: error,
-    },
-    'server failed to start'
-  );
+  logger.fatal(describeError(error), 'server failed to start');
   process.exitCode = 1;
 
   // An open database connection would keep the failed process alive.

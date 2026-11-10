@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
+import { describeError } from '../describe-error';
 import { logger } from '../log';
 import { FailureCode, JobStatus } from './job';
 import { claimJobs, finishJob } from './repository';
@@ -135,12 +136,7 @@ export function startWorker(options: WorkerOptions): Worker {
       try {
         await claimAvailableJobs();
       } catch (error) {
-        logger.error(
-          {
-            err: error,
-          },
-          'claiming jobs failed'
-        );
+        logger.error(describeError(error), 'claiming jobs failed');
       }
 
       // Shutdown may have begun during the claim, after its wake-up call.

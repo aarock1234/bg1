@@ -3,6 +3,7 @@ import { Hono } from 'hono';
 import { ApiClient } from '@/api/client';
 import { VQClient } from '@/api/vq';
 
+import { describeError } from '../describe-error';
 import { logger } from '../log';
 
 const RELAY_TIMEOUT_MS = 15_000;
@@ -126,7 +127,7 @@ export function createRelay(): Hono {
     } catch (error) {
       logger.warn(
         {
-          err: error,
+          ...describeError(error),
           host,
         },
         'relayed request failed'

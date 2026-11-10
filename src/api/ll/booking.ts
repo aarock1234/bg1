@@ -1,3 +1,4 @@
+import { requestStatus } from '../client';
 import type { Guest, LLClient, LLMP, Offer } from '../ll';
 
 type BookingClient = Pick<LLClient, 'book' | 'cancelBooking'>;
@@ -23,8 +24,12 @@ export async function bookForGuests(
     await ll.cancelBooking(unchosenGuests);
   } catch (error) {
     // The booking itself succeeded, so it is returned with every guest it
-    // still covers.
-    console.error(error);
+    // still covers. Only the status is logged: this also runs on the server,
+    // where Disney's answer has no place in the log.
+    console.warn(
+      'cancelling unchosen guests failed with status',
+      requestStatus(error)
+    );
 
     return booking;
   }

@@ -418,7 +418,7 @@ describe('LLClientWDW', () => {
     });
 
     it('returns original offer if changeOfferTime() fails', async () => {
-      jest.spyOn(console, 'error').mockImplementationOnce(() => {});
+      jest.spyOn(console, 'warn').mockImplementationOnce(() => {});
       changeOfferTime.mockReset().mockRejectedValueOnce('oops');
       await expectOffer(
         hm,
@@ -432,7 +432,10 @@ describe('LLClientWDW', () => {
         }
       );
       expect(client.changeOfferTime).toHaveBeenCalled();
-      expect(console.error).toHaveBeenCalledWith('oops');
+      expect(console.warn).toHaveBeenCalledWith(
+        'moving the offer to the expected time failed with status',
+        undefined
+      );
     });
 
     it('throws ModifyNotAllowed when not allowed to modify', async () => {

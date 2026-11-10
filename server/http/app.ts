@@ -8,6 +8,7 @@ import { fetchTokenFromService } from '@/api/sensor-data';
 import { HOSTS } from '@/config';
 import { WEB_ROUTE_PATHS } from '@/web-route';
 
+import { describeError } from '../describe-error';
 import { createJobRoutes } from '../jobs/routes';
 import type { Worker } from '../jobs/worker';
 import { logger } from '../log';
@@ -172,7 +173,7 @@ export async function createApp(options: AppOptions): Promise<Hono> {
   app.onError((error, context) => {
     logger.error(
       {
-        err: error,
+        ...describeError(error),
         path: context.req.path,
       },
       'request failed'

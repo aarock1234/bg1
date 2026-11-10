@@ -54,12 +54,23 @@ export class InvalidOrigin extends Error {
 export class RequestError extends Error {
   name = 'RequestError';
 
+  // The message gives the status only. Messages end up in logs, and Disney's
+  // answer, which can name guests, stays on `response`.
   constructor(
     public response: JsonResponse,
     message = 'Request failed'
   ) {
-    super(`${message}: ${JSON.stringify(response)}`);
+    super(`${message}: status ${response.status}`);
   }
+}
+
+// The HTTP status behind a failed request, or undefined for any other error.
+export function requestStatus(error: unknown): number | undefined {
+  if (error instanceof RequestError) {
+    return error.response.status;
+  }
+
+  return undefined;
 }
 
 export abstract class ApiClient {

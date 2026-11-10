@@ -2,7 +2,7 @@ import { ParkTime } from '@/datetime';
 import { RateLimitExceeded } from '@/ratelimit';
 
 import { ReauthNeeded } from '../auth';
-import { RequestError } from '../client';
+import { requestStatus } from '../client';
 import { ModifyNotAllowed, OfferError } from '../ll';
 import type {
   Guest,
@@ -90,14 +90,6 @@ export class NoEligibleGuests extends Error {
 
 function isWithinRange(time: ParkTime, range: ReturnTimeRange): boolean {
   return time >= range.earliest && time <= range.latest;
-}
-
-function requestStatus(error: unknown): number | undefined {
-  if (error instanceof RequestError) {
-    return error.response.status;
-  }
-
-  return undefined;
 }
 
 // Disney answers 410 when it has no return time to offer.

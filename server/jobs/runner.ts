@@ -1,10 +1,10 @@
 import { setTimeout as sleep } from 'node:timers/promises';
 
-import { RequestError } from '@/api/client';
 import { type AutoBookAttempt, autoBook } from '@/api/ll/auto-book';
 import { ParkTime } from '@/datetime';
 import { RateLimit } from '@/ratelimit';
 
+import { describeError } from '../describe-error';
 import { llClientFor, resortFor } from '../disney/clients';
 import {
   type DisneyLogin,
@@ -118,28 +118,6 @@ type Session = {
   login: DisneyLogin;
   auth: LoginAuth;
 };
-
-// Describes an error for the log without repeating Disney's answer, which
-// can name the guests.
-function describeError(error: unknown): Record<string, unknown> {
-  if (error instanceof RequestError) {
-    return {
-      errorName: error.name,
-      status: error.response.status,
-    };
-  }
-
-  if (error instanceof Error) {
-    return {
-      errorName: error.name,
-      stack: error.stack,
-    };
-  }
-
-  return {
-    errorName: 'unknown',
-  };
-}
 
 // Runs one job from the moment it is claimed until it ends or is handed
 // back.

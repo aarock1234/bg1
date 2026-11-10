@@ -2,6 +2,7 @@ import { type Context, Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { z } from 'zod';
 
+import { describeError } from '../describe-error';
 import { ApiError, errorResponse, invalidRequest } from '../http/api-error';
 import { logger } from '../log';
 import { JobRejected, createJob, createJobRequestSchema } from './create';
@@ -172,8 +173,7 @@ export function createJobRoutes(worker: JobWorker): Hono {
 
     logger.error(
       {
-        errorName: error.name,
-        stack: error.stack,
+        ...describeError(error),
         path: context.req.path,
       },
       'job request failed'

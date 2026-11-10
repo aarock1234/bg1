@@ -1,5 +1,6 @@
 import { DateTime, ParkTime, parkDate } from '@/datetime';
 
+import { requestStatus } from '../client';
 import {
   ApiGuest,
   BOOKING_TIMEOUT_MS,
@@ -275,8 +276,13 @@ export class LLClientWDW extends LLClient {
       try {
         return await this.changeOfferTime(offer, expectedTime);
       } catch (error) {
-        // The original offer is still good.
-        console.error(error);
+        // The original offer is still good. Only the status is logged: this
+        // also runs on the server, where Disney's answer has no place in the
+        // log.
+        console.warn(
+          'moving the offer to the expected time failed with status',
+          requestStatus(error)
+        );
       }
     }
 

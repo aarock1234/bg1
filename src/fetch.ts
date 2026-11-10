@@ -123,13 +123,16 @@ function dedupe(
 }
 
 async function send(request: PreparedRequest): Promise<JsonResponse> {
+  // Browsers refuse to run their fetch as a method of another object, so it
+  // is taken out of the request before being called.
+  const { url, init, timeoutMs, fetch: sendRequest } = request;
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), request.timeoutMs);
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
   let response: Response;
 
   try {
-    response = await request.fetch(request.url, {
-      ...request.init,
+    response = await sendRequest(url, {
+      ...init,
       signal: controller.signal,
     });
   } catch (error) {

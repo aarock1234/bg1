@@ -29,6 +29,36 @@ const ALLOWED_HOSTS = new Set(
   })
 );
 
+// Disney's answers are data for the app. These keep a browser from ever
+// showing one as a page, where its scripts would run on the site that holds
+// guests' logins.
+const INERT_RESPONSE_HEADERS = {
+  'X-Content-Type-Options': 'nosniff',
+  'Content-Security-Policy': "sandbox; default-src 'none'",
+};
+
+// Works out the Disney address a relayed request is for: everything after
+// the host in the request's own address. Returns undefined unless the result
+// is certain to be on that host, which a host written with escapes or a path
+// that doesn't start where expected would put in doubt.
+function upstreamUrl(requested: URL, host: string): URL | undefined {
+  const hostSegment = `/${host}/`;
+  const hostStart = requested.pathname.indexOf(hostSegment);
+
+  if (hostStart === -1) {
+    return undefined;
+  }
+
+  const path = requested.pathname.slice(hostStart + hostSegment.length - 1);
+  const target = new URL(path + requested.search, `https://${host}`);
+
+  if (target.protocol !== 'https:' || target.host !== host) {
+    return undefined;
+  }
+
+  return target;
+}
+
 function forwardedHeaders(incoming: Headers): Headers {
   const headers = new Headers();
 
@@ -60,26 +90,36 @@ export function createRelay(): Hono {
       );
     }
 
-    const { pathname, search } = new URL(context.req.url);
-    const hostSegment = `/${host}/`;
-    const path = pathname.slice(
-      pathname.indexOf(hostSegment) + hostSegment.length - 1
-    );
+    const target = upstreamUrl(new URL(context.req.url), host);
+
+    if (!target) {
+      return context.json(
+        {
+          error: 'invalid path',
+        },
+        400
+      );
+    }
+
     const { method } = context.req;
 
     try {
-      const response = await fetch(`https://${host}${path}${search}`, {
+      // A redirect is passed back as it is instead of being followed, which
+      // could take the request to a host outside the list.
+      const response = await fetch(target, {
         method,
         headers: forwardedHeaders(context.req.raw.headers),
         body: METHODS_WITHOUT_BODY.has(method)
           ? undefined
           : await context.req.arrayBuffer(),
+        redirect: 'manual',
         signal: AbortSignal.timeout(RELAY_TIMEOUT_MS),
       });
 
       return new Response(response.body, {
         status: response.status,
         headers: {
+          ...INERT_RESPONSE_HEADERS,
           'Content-Type': response.headers.get('Content-Type') ?? 'text/plain',
         },
       });

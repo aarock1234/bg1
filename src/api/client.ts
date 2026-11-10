@@ -13,6 +13,7 @@ const REQUESTS_PER_SECOND = 5;
 const STATUS_NETWORK_FAILURE = 0;
 const STATUS_UNAUTHORIZED = 401;
 const STATUS_FORBIDDEN = 403;
+const STATUS_BAD_GATEWAY = 502;
 
 export type ApiRequest = {
   path: string;
@@ -147,8 +148,11 @@ export abstract class ApiClient {
     }
 
     // Disney answers a rejected sensor token with 403 or drops the connection.
+    // On BG1's own site a dropped connection arrives as the relay's 502.
     const isSensorDataRejected =
-      status === STATUS_FORBIDDEN || status === STATUS_NETWORK_FAILURE;
+      status === STATUS_FORBIDDEN ||
+      status === STATUS_NETWORK_FAILURE ||
+      status === STATUS_BAD_GATEWAY;
 
     if (request.sensorData && isSensorDataRejected) {
       this.sensorData.reset();

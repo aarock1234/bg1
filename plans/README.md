@@ -42,8 +42,10 @@ What changed that day:
   (`366eb31`, `AUTO_BOOK_ACTION=notify`, `WATCH_POLL_INTERVAL_MS`). Verified
   against Disney: a watch job ended `available` with a real return time.
 - Push notifications had never been sent: `web-push` 4 has no default
-  export (`611e4f9`). Verified that a push now reaches Apple's push service;
-  delivery to a phone is unverified.
+  export (`611e4f9`). Verified end to end: a Chrome subscribed on
+  bg1.abdels.dev received and showed "Lightning Lane available now" with a
+  link to `/dlr` when a live watch job ended `available`. Delivery to an
+  iPhone Home Screen app is unverified.
 - Proxies, imitating the current official app and a token captured from it
   were tried and removed (`2b57b02`, `fb1b9d3`). BG1 does not try to get
   past Disney's bot protection.

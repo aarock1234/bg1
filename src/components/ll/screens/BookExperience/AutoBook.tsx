@@ -11,12 +11,12 @@ import { DateTime, ParkTime, formatTime } from '@/datetime';
 import { ServerJobState } from '@/hooks/useServerJob';
 import { canNotify } from '@/push';
 
+import OpenDisneyApp from './OpenDisneyApp';
 import {
   attemptMessage,
   bookedMessage,
   rejectionMessage,
 } from './auto-book-messages';
-import { disneyAppLink } from './disney-app';
 
 type AutoBookProps = {
   state: ServerJobState;
@@ -167,22 +167,13 @@ function Outcome({ state }: OutcomeProps) {
   const { status, result, failure, resortId } = state.job;
 
   if (status === 'available' && result) {
-    const app = disneyAppLink(resortId);
-
     return (
       <Alert title="Lightning Lane Available" className="bg-pressed">
         <p>
-          {bookedMessage(result)} is available. Book it in the {app.name} now,
+          {bookedMessage(result)} is available. Book it in the Disney app now,
           before it's gone.
         </p>
-        <a
-          href={app.url}
-          target="_blank"
-          rel="noreferrer"
-          className="btn btn-primary btn-full mt-3"
-        >
-          Open the {app.name}
-        </a>
+        <OpenDisneyApp resortId={resortId} isPrimary />
       </Alert>
     );
   }

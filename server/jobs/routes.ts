@@ -1,37 +1,15 @@
 import { type Context, Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
-import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import { z } from 'zod';
 
 import { ApiError, errorResponse, invalidRequest } from '../http/api-error';
-import { rateLimit } from '../http/rate-limit';
 import { logger } from '../log';
-import {
-  JobRejected,
-  RejectionCode,
-  createJob,
-  createJobRequestSchema,
-} from './create';
+import { JobRejected, createJob, createJobRequestSchema } from './create';
 import type { Job } from './job';
 import { type JobView, toJobView } from './public-view';
 import { cancelJob, findJob } from './repository';
 import { matchesTokenHash } from './token';
 import type { Worker } from './worker';
-
-const ONE_MINUTE_MS = 60_000;
-
-// How often one visitor may start a search.
-const CREATE_RATE_LIMIT = {
-  limit: 20,
-  windowMs: ONE_MINUTE_MS,
-};
-
-// How often one visitor may look at or cancel searches. The app checks on a
-// running search every few seconds.
-const READ_RATE_LIMIT = {
-  limit: 240,
-  windowMs: ONE_MINUTE_MS,
-};
 
 // A request to start a search holds a login and a party of guests, which
 // stay far below this.
@@ -40,7 +18,6 @@ const MAX_REQUEST_BYTES = 64 * 1024;
 const BEARER_PREFIX = 'Bearer ';
 
 const STATUS_UNPROCESSABLE = 422;
-const STATUS_CONFLICT = 409;
 
 const jobIdSchema = z.uuid();
 
@@ -63,14 +40,6 @@ function notFound(): ApiError {
 
 function unauthorized(): ApiError {
   return new ApiError(401, 'unauthorized', "this job's token is required");
-}
-
-function rejectionStatus(code: RejectionCode): ContentfulStatusCode {
-  if (code === RejectionCode.TOO_MANY_JOBS) {
-    return STATUS_CONFLICT;
-  }
-
-  return STATUS_UNPROCESSABLE;
 }
 
 async function readJson(context: Context): Promise<unknown> {
@@ -118,7 +87,6 @@ export function createJobRoutes(worker: JobWorker): Hono {
 
   routes.post(
     '/',
-    rateLimit(CREATE_RATE_LIMIT),
     bodyLimit({
       maxSize: MAX_REQUEST_BYTES,
       onError: context => {
@@ -156,7 +124,7 @@ export function createJobRoutes(worker: JobWorker): Hono {
     }
   );
 
-  routes.get('/:id', rateLimit(READ_RATE_LIMIT), async context => {
+  routes.get('/:id', async context => {
     const response: JobResponse = {
       job: toJobView(await authorizedJob(context)),
     };
@@ -166,7 +134,7 @@ export function createJobRoutes(worker: JobWorker): Hono {
 
   // Cancelling a search that has already ended changes nothing and answers
   // with the job as it is.
-  routes.delete('/:id', rateLimit(READ_RATE_LIMIT), async context => {
+  routes.delete('/:id', async context => {
     const { id } = await authorizedJob(context);
     const job = await cancelJob(id);
 
@@ -198,7 +166,7 @@ export function createJobRoutes(worker: JobWorker): Hono {
     if (error instanceof JobRejected) {
       return errorResponse(
         context,
-        new ApiError(rejectionStatus(error.code), error.code, error.message)
+        new ApiError(STATUS_UNPROCESSABLE, error.code, error.message)
       );
     }
 

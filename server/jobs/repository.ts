@@ -1,4 +1,4 @@
-import { and, count, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm';
 
 import { db } from '../db/client';
 import { jobs } from '../db/schema';
@@ -111,23 +111,6 @@ export async function findJob(id: string): Promise<Job | undefined> {
   }
 
   return jobSchema.parse(row);
-}
-
-// Counts the searches still running for one Disney account.
-export async function countActiveJobs(accountHash: string): Promise<number> {
-  const [row] = await db
-    .select({
-      total: count(),
-    })
-    .from(jobs)
-    .where(
-      and(
-        eq(jobs.accountHash, accountHash),
-        eq(jobs.status, JobStatus.SEARCHING)
-      )
-    );
-
-  return row?.total ?? 0;
 }
 
 // Takes over searching jobs that no instance holds: new ones, released ones,

@@ -8,7 +8,7 @@ import { disneyLoginSchema, loginAuth } from '../disney/credentials';
 import { encryptLogin } from '../disney/login-crypto';
 import { pushSubscriptionSchema } from '../push/notify';
 import { type Job, dateSchema, jobGuestSchema, timeSchema } from './job';
-import { countActiveJobs, insertJob } from './repository';
+import { insertJob } from './repository';
 import { newJobToken, sha256 } from './token';
 import {
   type BookingWindow,
@@ -16,9 +16,6 @@ import {
   isWindowOver,
   resortNow,
 } from './window';
-
-// How many searches may run at once for one Disney account.
-const MAX_ACTIVE_JOBS_PER_ACCOUNT = 3;
 
 // How far ahead a search may be set up. Disney opens Lightning Lanes days
 // before a visit, not months.
@@ -61,7 +58,6 @@ export const RejectionCode = {
   DATE_NOT_BOOKABLE: 'date_not_bookable',
   UNKNOWN_EXPERIENCE: 'unknown_experience',
   TOO_MANY_GUESTS: 'too_many_guests',
-  TOO_MANY_JOBS: 'too_many_jobs',
 } as const;
 
 export type RejectionCode = (typeof RejectionCode)[keyof typeof RejectionCode];
@@ -172,20 +168,11 @@ export async function createJob(request: ValidJobRequest): Promise<CreatedJob> {
   }
 
   const name = await experienceName(request);
-  const accountHash = sha256(login.swid);
-
-  if ((await countActiveJobs(accountHash)) >= MAX_ACTIVE_JOBS_PER_ACCOUNT) {
-    throw new JobRejected(
-      RejectionCode.TOO_MANY_JOBS,
-      `You can run ${MAX_ACTIVE_JOBS_PER_ACCOUNT} searches at a time. Cancel one to start another.`
-    );
-  }
-
   const { token, hash } = newJobToken();
   const job = await insertJob({
     ...window,
     tokenHash: hash,
-    accountHash,
+    accountHash: sha256(login.swid),
     resortId,
     experienceId: request.experienceId,
     experienceName: name,

@@ -12,7 +12,6 @@ import { createJobRoutes } from '../jobs/routes';
 import type { Worker } from '../jobs/worker';
 import { logger } from '../log';
 import { probe, probeRequestSchema } from '../probe/probe';
-import { rateLimit } from './rate-limit';
 import { createRelay } from './relay';
 import { SHORT_LINKS } from './short-links';
 
@@ -26,28 +25,6 @@ const APP_SHELL_FILE = `${SITE_DIRECTORY}/app.html`;
 // The path the app's files are served under. It has to match `base` in
 // vite.config.mts, which the built files use to find each other.
 const APP_PATH = '/bg1';
-
-const ONE_MINUTE_MS = 60_000;
-
-// How often one visitor may run the probe, which makes several requests to
-// Disney each time.
-const PROBE_RATE_LIMIT = {
-  limit: 10,
-  windowMs: ONE_MINUTE_MS,
-};
-
-// How often one visitor's app may call Disney through the server. Using the
-// app makes a few requests per screen, and auto booking about one a second.
-const RELAY_RATE_LIMIT = {
-  limit: 600,
-  windowMs: ONE_MINUTE_MS,
-};
-
-// How often one visitor may ask for the key push subscriptions are made with.
-const PUSH_KEY_RATE_LIMIT = {
-  limit: 60,
-  windowMs: ONE_MINUTE_MS,
-};
 
 type AppOptions = {
   proxyUrls: string[];
@@ -85,8 +62,8 @@ async function readJson(context: Context): Promise<unknown> {
   }
 }
 
-// The API is open: callers act with their own Disney login, and each visitor
-// is rate limited.
+// The API is open and unmetered: it serves a family, not the public, and
+// callers act with their own Disney login.
 function createApi(options: AppOptions): Hono {
   const api = new Hono();
 
@@ -98,14 +75,13 @@ function createApi(options: AppOptions): Hono {
     })
   );
 
-  api.use('/relay/*', rateLimit(RELAY_RATE_LIMIT));
   api.route('/relay', createRelay());
 
-  api.post('/sensor-data', rateLimit(RELAY_RATE_LIMIT), async context => {
+  api.post('/sensor-data', async context => {
     return context.text(await fetchTokenFromService());
   });
 
-  api.post('/probe', rateLimit(PROBE_RATE_LIMIT), async context => {
+  api.post('/probe', async context => {
     const request = probeRequestSchema.safeParse(await readJson(context));
 
     if (!request.success) {
@@ -134,7 +110,7 @@ function createApi(options: AppOptions): Hono {
 
   api.route('/jobs', createJobRoutes(options.worker));
 
-  api.get('/push/public-key', rateLimit(PUSH_KEY_RATE_LIMIT), context => {
+  api.get('/push/public-key', context => {
     const response: PushPublicKeyResponse = {
       publicKey: options.vapidPublicKey,
     };

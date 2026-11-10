@@ -5,7 +5,9 @@ import type { ParkHours } from '../ll';
 const MINUTES_PER_HOUR = 60;
 const MINUTES_PER_DAY = 24 * MINUTES_PER_HOUR;
 
-const DEFAULT_SLOT_MINUTES = 15;
+// The step between the times a guest can choose, which also rounds the first
+// one up from now.
+const DEFAULT_SLOT_MINUTES = 5;
 
 // Hours to assume until an offer has reported the park's actual hours.
 const TYPICAL_PARK_HOURS: ParkHours = {

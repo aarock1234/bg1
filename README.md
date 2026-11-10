@@ -4,6 +4,21 @@
 
 BG1 is an unofficial, experimental client for obtaining Lightning Lane Multi Pass reservations and virtual queue boarding groups at Disney theme parks in the United States. Read the [BG1 documentation](https://joelface.github.io/bg1/) to learn more.
 
+## About this fork
+
+This fork tracks the behavior of the newest upstream builds, including Lightning Lane booking, and adds auto booking: pick a range of return times on the booking screen and BG1 keeps checking until it can book one. Auto booking only runs while that screen stays open.
+
+## Development
+
+BG1 uses [pnpm](https://pnpm.io/).
+
+- `pnpm install` installs dependencies.
+- `pnpm start` runs the dev server at `https://localhost:3000/bg1/`.
+- `pnpm build` writes the production build to `dist/`.
+- `pnpm checkall` runs the tests, linter, format check, and type check.
+
+The hosts BG1 depends on are listed in `src/config.ts`. The address the userscript loads the app from is `APP_URL` in `autoloader.user.js`.
+
 ## Acknowledgments
 
 - **Len Testa:** For helping me get as close as I could ever reasonably expect to accomplish a not very serious childhood dream of almost being an Imagineer. Also for creating [Touring Plans](https://touringplans.com/), which is pretty rad.

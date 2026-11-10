@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         BG1 Autoloader
 // @namespace    https://aarock1234.github.io/bg1/
-// @version      0.3
+// @version      0.4
 // @description  Automatically loads the BG1 interface
 // @author       aarock1234
 // @match        https://joelface.github.io/bg1/start.html
@@ -15,17 +15,26 @@
 // ==/UserScript==
 'use strict';
 
-const bg1UrlOriginal = 'https://joelface.github.io/bg1/';
-const bg1Url = 'https://aarock1234.github.io/bg1/dist/';
-if (window.location.href === bg1UrlOriginal + 'start.html') {
-  document.body.classList.add('autoload');
-} else {
+// Where the built app (bg1.js and bg1.css) is hosted.
+const APP_URL = 'https://aarock1234.github.io/bg1/dist/';
+
+// The start page that links to the Disney pages BG1 takes over.
+const START_PAGE_URL = 'https://joelface.github.io/bg1/start.html';
+
+function replacePageWithApp() {
   document.open();
   document.write(
-    `<!doctype html><link rel=stylesheet href="${bg1Url}bg1.css"><body>`
+    `<!doctype html><link rel=stylesheet href="${APP_URL}bg1.css"><body>`
   );
+
   const script = document.createElement('script');
   script.type = 'module';
-  script.src = bg1Url + 'bg1.js';
+  script.src = `${APP_URL}bg1.js`;
   document.head.appendChild(script);
+}
+
+if (window.location.href === START_PAGE_URL) {
+  document.body.classList.add('autoload');
+} else {
+  replacePageWithApp();
 }

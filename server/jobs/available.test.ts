@@ -36,10 +36,12 @@ const job = {
     {
       id: '1',
       name: 'Mickey Mouse',
+      orderDetails: undefined,
     },
     {
       id: '2',
       name: 'Minnie Mouse',
+      orderDetails: undefined,
     },
   ],
 };

@@ -84,6 +84,11 @@ const envSchema = z
     // per line or separated by commas.
     DISNEY_PROXIES: z.string().default('').transform(parseProxies),
 
+    // A bot-protection token captured from the official Disney app, sent in
+    // place of the ones the BG1 backend hands out, which Disney refuses for
+    // offers and bookings.
+    DISNEY_SENSOR_DATA: z.string().min(1).optional(),
+
     // Whether jobs send their requests through one of DISNEY_PROXIES. Disney
     // accepts direct requests, so this is off unless set to `true`.
     DISNEY_USE_PROXIES: flag,

@@ -34,7 +34,7 @@ function UnableToModify() {
   return (
     <>
       <h3>Unable to Modify</h3>
-      <p>
+      <p className="note">
         Your current reservation cannot be modified to this experience due to
         the following conflicts:
       </p>
@@ -47,7 +47,9 @@ function NotEligibleYet() {
     <>
       <EligibleTimeAlert />
       <h3>No Eligible Guests</h3>
-      <p>No one in your party is currently eligible for this Lightning Lane.</p>
+      <p className="note">
+        No one in your party is currently eligible for this Lightning Lane.
+      </p>
     </>
   );
 }

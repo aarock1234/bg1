@@ -3,12 +3,11 @@ type LabeledItemProps = {
   children: React.ReactNode;
 };
 
+// A value with a quiet caption in front of it, such as "Standby 45 min".
 export default function LabeledItem({ label, children }: LabeledItemProps) {
   return (
-    <div className="flex items-center flex-1 whitespace-nowrap">
-      <span className="mr-2 text-xs font-semibold uppercase text-gray-500">
-        {label}
-      </span>{' '}
+    <div className="flex items-center whitespace-nowrap">
+      <span className="mr-2 text-[13px] font-medium text-muted">{label}</span>{' '}
       <span>{children}</span>
     </div>
   );

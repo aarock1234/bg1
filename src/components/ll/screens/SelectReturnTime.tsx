@@ -9,14 +9,13 @@ import { Time } from '@/components/Time';
 import ClientsContext from '@/contexts/ClientsContext';
 import NavContext from '@/contexts/NavContext';
 import RebookingContext from '@/contexts/RebookingContext';
-import ThemeContext from '@/contexts/ThemeContext';
 import { DateTime, ParkTime, parkDate } from '@/datetime';
 import useDataLoader from '@/hooks/useDataLoader';
 import kvdb from '@/kvdb';
 
 import BookingDate from '../BookingDate';
 import RebookingHeader from '../RebookingHeader';
-import ReturnTime from '../ReturnTime';
+import { ReturnTimeCard } from '../ReturnTime';
 import YourDayButton from '../YourDayButton';
 import Home from './Home';
 import Legend from './Home/Legend';
@@ -335,10 +334,12 @@ type TimeButtonsRowProps = {
 function TimeButtonsRow({ hour, children }: TimeButtonsRowProps) {
   return (
     <>
-      <h4 className="flex items-center justify-end py-1.5 pl-3 font-bold">
+      <h4 className="flex items-center justify-end bg-surface pl-3.5 text-sm font-medium whitespace-nowrap text-muted">
         <Time time={`${hour}`} />
       </h4>
-      <div className="flex gap-1.5 py-1.5 pl-3">{children}</div>
+      <div className="flex flex-wrap gap-1.5 bg-surface px-3 py-2">
+        {children}
+      </div>
     </>
   );
 }
@@ -349,37 +350,27 @@ type MinuteButtonProps = {
   onClick: SelectTime;
 };
 
-function MinuteButton({ time, code, onClick }: MinuteButtonProps) {
-  const theme = use(ThemeContext);
+// Availability is told apart by shape as well as by brightness: an available
+// time is a filled button, one that overlaps a plan has a dashed outline, and
+// an unavailable one is bare.
+const MINUTE_BUTTON_CLASSES: Record<AvailabilityCode, string> = {
+  A: 'border-line-strong bg-pressed font-medium text-ink',
+  O: 'border-dashed border-line-strong text-muted',
+  U: 'border-transparent text-faint',
+};
 
-  const classesByCode = {
-    A: {
-      div: `${theme.bg} text-white`,
-      button: '',
-    },
-    U: {
-      div: 'bg-gray-200 text-gray-700',
-      button: '',
-    },
-    O: {
-      div: theme.bg,
-      button: 'bg-white/75 text-black',
-    },
-  };
-  const classes = classesByCode[code];
+function MinuteButton({ time, code, onClick }: MinuteButtonProps) {
   const timeString = `${time}`;
   const minuteLabel = timeString.slice(2, 5);
 
   return (
-    <div className={`rounded-lg font-semibold overflow-hidden ${classes.div}`}>
-      <button
-        className={`px-1.75 py-0.75 border border-black/20 rounded-lg ${classes.button}`}
-        onClick={() => onClick(ParkTime.from(time))}
-        aria-label={`${AVAILABILITY_NAMES[code]}: ${time}`}
-      >
-        <time dateTime={timeString}>{minuteLabel}</time>
-      </button>
-    </div>
+    <button
+      className={`h-10 min-w-0 flex-1 rounded-control border text-[15px] transition-colors active:bg-line ${MINUTE_BUTTON_CLASSES[code]}`}
+      onClick={() => onClick(ParkTime.from(time))}
+      aria-label={`${AVAILABILITY_NAMES[code]}: ${time}`}
+    >
+      <time dateTime={timeString}>{minuteLabel}</time>
+    </button>
   );
 }
 
@@ -390,17 +381,15 @@ type AvailabilityTypeProps = {
 // A legend entry: a sample button for an availability code, with its name.
 function AvailabilityType({ code }: AvailabilityTypeProps) {
   return (
-    <tr className="flex flex-col items-center gap-1">
-      <td>
+    <tr className="flex flex-1 flex-col items-center gap-1.5">
+      <td className="flex w-12">
         <MinuteButton
           time={new ParkTime(0)}
           code={code}
           onClick={async () => undefined}
         />
       </td>
-      <th className="text-xs text-gray-500 font-semibold uppercase">
-        {AVAILABILITY_NAMES[code]}
-      </th>
+      <th className="text-[13px] text-muted">{AVAILABILITY_NAMES[code]}</th>
     </tr>
   );
 }
@@ -422,11 +411,9 @@ function AvailableOnlyButtons({ times, onClick }: TimeButtonsProps) {
     return (
       <TimeButtonsRow hour={firstTime.hour} key={firstTime.hour}>
         {hourTimes.map(time => (
-          <div key={time.toString()}>
-            <Button onClick={() => onClick(time)}>
-              <Time time={time} />
-            </Button>
-          </div>
+          <Button onClick={() => onClick(time)} key={time.toString()}>
+            <Time time={time} />
+          </Button>
         ))}
       </TimeButtonsRow>
     );
@@ -472,7 +459,7 @@ function TimeSelection({
   }
 
   if (times.length === 0) {
-    return <p>No other times available</p>;
+    return <p className="empty-state">No other times available</p>;
   }
 
   const TimeButtons = showsFullAvailability
@@ -482,9 +469,9 @@ function TimeSelection({
   return (
     <>
       {allowsFullAvailability(offer) && (
-        <div className="flex items-center gap-x-4 mt-4">
+        <div className="mt-6 flex items-center justify-between gap-3">
           <h3 className="mt-0">Availabile Times</h3>
-          <label className="flex items-center gap-x-2">
+          <label className="flex min-h-11 items-center gap-2.5 text-[15px]">
             <input
               type="checkbox"
               checked={showsFullAvailability}
@@ -495,22 +482,24 @@ function TimeSelection({
         </div>
       )}
 
-      <div
-        className="overflow-auto mt-2 -mx-3 grid grid-cols-[min-content_1fr]"
-        data-testid="time-buttons"
-      >
-        <TimeButtons offer={offer} times={times} onClick={onSelect} />
+      <div className="list mt-3">
+        <div
+          className="grid grid-cols-[auto_1fr] gap-y-px bg-line"
+          data-testid="time-buttons"
+        >
+          <TimeButtons offer={offer} times={times} onClick={onSelect} />
+        </div>
       </div>
 
       {showsFullAvailability && (
-        <Legend title="Return Time Availability" flex="gap-x-4 py-1">
+        <Legend title="Return Time Availability" flex="py-1">
           <AvailabilityType code="A" />
           <AvailabilityType code="O" />
           <AvailabilityType code="U" />
         </Legend>
       )}
 
-      <p className="mt-8 text-sm">
+      <p className="note mt-6 px-1">
         The Lightning Lane system reports a limited subset of available return
         times. When &quot;show all&quot; is enabled, BG1 makes some educated
         guesses to give you more options. The closest available alternative will
@@ -606,9 +595,9 @@ export default function SelectReturnTime<B extends Offer['booking']>({
       }
       theme={offer.experience.park.theme}
     >
-      <h2>{offer.experience.name}</h2>
+      <h2 className="mt-5">{offer.experience.name}</h2>
       <LandLine land={offer.experience.land} />
-      <ReturnTime
+      <ReturnTimeCard
         start={currentReturnTime.start}
         end={currentReturnTime.end}
         button={

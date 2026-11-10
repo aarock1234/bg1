@@ -28,12 +28,11 @@ function SelectedGuests() {
 
   return (
     <>
-      <div className="mt-4">
-        <h3 className="inline mt-0">Your Party</h3>
+      <div className="mt-6 flex items-center justify-between gap-3">
+        <h3 className="mt-0">Your Party</h3>
         <Button
           type="small"
           onClick={() => goTo(<ModifyParty party={party} />)}
-          className="ml-3"
         >
           Modify Party
         </Button>

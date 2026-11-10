@@ -1,15 +1,19 @@
 import Icon, { IconProps } from './Icon';
 
-type CalendarIconProps = Pick<IconProps, 'className'>;
-
-/**
- * Calendar icon from [IcoMoon]{@link https://icomoon.io/#icons-icomoon}
- * @license CC-BY-4.0
- */
-export default function CalendarIcon({ className }: CalendarIconProps) {
+// Path data from Lucide (https://lucide.dev), ISC license.
+export default function CalendarIcon(props: IconProps) {
   return (
-    <Icon className={className}>
-      <path d="M5 6h2v2h-2zM8 6h2v2h-2zM11 6h2v2h-2zM2 12h2v2h-2zM5 12h2v2h-2zM8 12h2v2h-2zM5 9h2v2h-2zM8 9h2v2h-2zM11 9h2v2h-2zM2 9h2v2h-2zM13 0v1h-2v-1h-7v1h-2v-1h-2v16h15v-16h-2zM14 15h-13v-11h13v11z" />
+    <Icon {...props}>
+      <path d="M8 2v4" />
+      <path d="M16 2v4" />
+      <rect width="18" height="18" x="3" y="4" rx="2" />
+      <path d="M3 10h18" />
+      <path d="M8 14h.01" />
+      <path d="M12 14h.01" />
+      <path d="M16 14h.01" />
+      <path d="M8 18h.01" />
+      <path d="M12 18h.01" />
+      <path d="M16 18h.01" />
     </Icon>
   );
 }

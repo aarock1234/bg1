@@ -18,6 +18,10 @@ import QueueScreen from './QueueScreen';
 // loads.
 const JOIN_MIN_LOAD_TIME_MS = 999;
 
+// Joining is a race against the clock, so its button is taller and bolder
+// than the primary button of other screens.
+const JOIN_BUTTON_CLASSES = 'h-14 text-[17px]';
+
 // Usage reporting is best-effort: a failure must not get in the guest's way.
 async function reportJoinedQueue(resort: Resort): Promise<void> {
   try {
@@ -78,7 +82,9 @@ export default function JoinQueue({ queue, guests }: JoinQueueProps) {
       <QueueOpening queue={queue} />
       <h3>Your Party</h3>
       <GuestList guests={guests} />
-      <FloatingButton onClick={joinQueue}>Join Virtual Queue</FloatingButton>
+      <FloatingButton className={JOIN_BUTTON_CLASSES} onClick={joinQueue}>
+        Join Virtual Queue
+      </FloatingButton>
       {loaderElem}
     </QueueScreen>
   );
@@ -91,7 +97,12 @@ type QueueOpeningProps = {
 // Tells the guest when to tap the Join button.
 function QueueOpening({ queue }: QueueOpeningProps) {
   if (queue.isAcceptingJoins) {
-    return <p>The virtual queue is open. Join now!</p>;
+    return (
+      <p className="card mt-4 mb-0 flex items-center gap-3 font-medium">
+        <span className="size-2 shrink-0 rounded-full bg-ink" aria-hidden />
+        The virtual queue is open. Join now!
+      </p>
+    );
   }
 
   if (!queue.nextScheduledOpenTime) {
@@ -104,10 +115,13 @@ function QueueOpening({ queue }: QueueOpeningProps) {
         time={queue.nextScheduledOpenTime}
         label="Next queue opening"
       />
-      <p>
-        Tap the <b>Join Virtual Queue</b> button when the clock reads{' '}
-        <time className="font-semibold">{queue.nextScheduledOpenTime}</time>.
-        The queue can fill up almost instantly, so be quick!
+      <p className="px-1 text-[15px] text-muted">
+        Tap the <b className="text-ink">Join Virtual Queue</b> button when the
+        clock reads{' '}
+        <time className="font-semibold text-ink">
+          {queue.nextScheduledOpenTime}
+        </time>
+        . The queue can fill up almost instantly, so be quick!
       </p>
     </>
   );

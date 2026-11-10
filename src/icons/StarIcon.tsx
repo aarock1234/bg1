@@ -1,13 +1,10 @@
 import Icon, { IconProps } from './Icon';
 
-/**
- * Star icon from [IcoMoon]{@link https://icomoon.io/#icons-icomoon}
- * @license CC-BY-4.0
- */
+// Path data from Lucide (https://lucide.dev), ISC license.
 export default function StarIcon(props: IconProps) {
   return (
     <Icon {...props}>
-      <path d="M16 6.204l-5.528-0.803-2.472-5.009-2.472 5.009-5.528 0.803 4 3.899-0.944 5.505 4.944-2.599 4.944 2.599-0.944-5.505 4-3.899z" />
+      <path d="m12 2 3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
     </Icon>
   );
 }

@@ -107,6 +107,23 @@ function isReauthNeeded(): boolean {
 // Mobile browsers don't zoom on a double tap when the body handles clicks.
 function ignoreClick() {}
 
+type StartupProps = {
+  children: React.ReactNode;
+};
+
+// What is on screen before an app's first screen: BG1's name, and under it
+// what the guest is waiting for. Disney's login form opens on top of it.
+function Startup({ children }: StartupProps) {
+  return (
+    <div className="screen items-center justify-center gap-5 px-gutter text-center">
+      <div className="text-[28px] leading-none font-bold tracking-tight">
+        BG1
+      </div>
+      {children}
+    </div>
+  );
+}
+
 export default function App() {
   const [app, setApp] = useState<LoadedApp>();
   const [isLoginRequired, setIsLoginRequired] = useState(isReauthNeeded);
@@ -189,11 +206,22 @@ export default function App() {
   }
 
   if (!app) {
-    return <div />;
+    return (
+      <Startup>
+        <div className="spinner" role="status" aria-label="Starting BG1" />
+      </Startup>
+    );
   }
 
   if (isLoginRequired) {
-    return <LoginForm resort={app.resort} onLogin={logIn} />;
+    return (
+      <Startup>
+        <p className="note my-0 max-w-64">
+          Log in with your Disney account to continue.
+        </p>
+        <LoginForm resort={app.resort} onLogin={logIn} />
+      </Startup>
+    );
   }
 
   return (

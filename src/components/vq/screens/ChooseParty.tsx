@@ -45,9 +45,10 @@ export default function ChooseParty({ queue }: ChoosePartyProps) {
 
   return (
     <QueueScreen queue={queue} title="Choose Your Party">
-      <p>
+      <p className="note">
         Select everyone in your party who would like to experience this
-        attraction, and tap the <b>Confirm Party</b> button.
+        attraction, and tap the <b className="text-ink">Confirm Party</b>{' '}
+        button.
       </p>
       <h3>Your Party</h3>
       {guests.length > 0 ? (
@@ -60,7 +61,7 @@ export default function ChooseParty({ queue }: ChoosePartyProps) {
           }}
         />
       ) : (
-        <p>No guests available</p>
+        <NoGuests isLoaderShown={!!loaderElem} />
       )}
       <FloatingButton
         disabled={party.size === 0}
@@ -71,4 +72,17 @@ export default function ChooseParty({ queue }: ChoosePartyProps) {
       {loaderElem}
     </QueueScreen>
   );
+}
+
+type NoGuestsProps = {
+  isLoaderShown: boolean;
+};
+
+// The message stays hidden while the spinner or a flash message is shown.
+function NoGuests({ isLoaderShown }: NoGuestsProps) {
+  if (isLoaderShown) {
+    return null;
+  }
+
+  return <p className="empty-state">No guests available</p>;
 }

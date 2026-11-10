@@ -40,15 +40,15 @@ function findOverlappedPlans(
 
 function OverlappedPlan({ plan }: OverlappedPlanProps) {
   return (
-    <li>
-      <div className="font-semibold">
+    <li className="py-2.5">
+      <div className="text-[15px] font-medium text-ink">{plan.name}</div>
+      <div className="mt-0.5">
         <ReturnWindow {...plan} />
       </div>
-      <div className="text-lg">{plan.name}</div>
       {plan.type === 'LL' && plan.showTimeInfo && (
-        <div className="">
+        <div className="mt-0.5">
           Show Time:{' '}
-          <b>
+          <b className="font-medium text-ink">
             <Time time={plan.showTimeInfo.showStartTime} /> -{' '}
             <Time time={plan.showTimeInfo.showEndTime} />
           </b>
@@ -72,7 +72,7 @@ export default function OverlappingPlans({ offer }: OverlappingPlansProps) {
         This return time overlaps with your existing plans more than is
         recommended:
       </p>
-      <ul className="dividers divide-yellow-400/50 -my-3 px-4">
+      <ul className="divide-y divide-line border-y border-line">
         {overlappedPlans.map(plan => (
           <OverlappedPlan plan={plan} key={plan.id} />
         ))}

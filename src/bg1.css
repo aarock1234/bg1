@@ -1,41 +1,108 @@
 @import 'tailwindcss';
 
+/* The preview harness is development-only, so its class names must not end up
+   in the production stylesheet. */
+@source not "./preview";
+
 @theme {
-  --color-bg1-blue: #5271ff;
-  --color-bg1-blue-d: oklch(53% 0.21 270);
-  --color-blue: oklch(54% 0.23 270);
-  --color-blue-d: oklch(46% 0.23 270);
-  --color-cyan: oklch(60% 0.12 214);
-  --color-cyan-d: oklch(52% 0.12 214);
-  --color-fuchsia: oklch(60% 0.27 326);
-  --color-fuchsia-d: oklch(52% 0.27 326);
-  --color-gold: oklch(62% 0.12 90);
-  --color-gold-d: oklch(54% 0.12 90);
-  --color-gray: oklch(40% 0 0);
-  --color-gray-d: oklch(32% 0 0);
-  --color-green: oklch(58% 0.18 142);
-  --color-green-d: oklch(50% 0.18 142);
-  --color-orange: oklch(62% 0.2 56);
-  --color-orange-d: oklch(54% 0.2 56);
-  --color-purple: oklch(54% 0.23 300);
-  --color-purple-d: oklch(46% 0.23 300);
-  --color-red: oklch(58% 0.22 28);
-  --color-red-d: oklch(50% 0.22 28);
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+
+  /* The whole palette. Everything is drawn with these. */
+  --color-canvas: #0a0a0a;
+  --color-surface: #111111;
+  --color-pressed: #1a1a1a;
+  --color-line: #242424;
+  --color-line-strong: #3d3d3d;
+  --color-ink: #ededed;
+  --color-muted: #8f8f8f;
+  --color-faint: #5c5c5c;
+
+  /* The one accent. Only for errors and destructive actions, and never as the
+     only signal. */
+  --color-danger: #ff6369;
+
+  --radius-control: 8px;
+  --radius-card: 12px;
+  --radius-sheet: 16px;
 
   --breakpoint-xs: 360px;
+
+  /* Park and land colors, which Theme still hands out as bg-<color> and
+     text-<color>-d class names. They are neutral now, so a component that
+     still uses them paints a plain surface with readable text. Don't use them
+     in new code. */
+  --color-bg1-blue: var(--color-surface);
+  --color-bg1-blue-d: var(--color-ink);
+  --color-blue: var(--color-surface);
+  --color-blue-d: var(--color-ink);
+  --color-cyan: var(--color-surface);
+  --color-cyan-d: var(--color-ink);
+  --color-fuchsia: var(--color-surface);
+  --color-fuchsia-d: var(--color-ink);
+  --color-gold: var(--color-surface);
+  --color-gold-d: var(--color-ink);
+  --color-gray: var(--color-surface);
+  --color-gray-d: var(--color-ink);
+  --color-green: var(--color-surface);
+  --color-green-d: var(--color-ink);
+  --color-orange: var(--color-surface);
+  --color-orange-d: var(--color-ink);
+  --color-purple: var(--color-surface);
+  --color-purple-d: var(--color-ink);
+  --color-red: var(--color-surface);
+  --color-red-d: var(--color-ink);
 }
 
+/* Hairline dividers between the items of a plain list. Prefer the `list`
+   component class for new work; this stays for lists that aren't grouped in a
+   container. */
 @utility dividers {
-  @apply divide-y-2 divide-gray-300;
+  @apply divide-y divide-line;
 
   & > li {
     @apply py-3;
   }
 }
 
+/* Safe-area-aware page gutters, for anything that spans the screen's width. */
+@utility px-gutter {
+  padding-left: max(16px, env(safe-area-inset-left));
+  padding-right: max(16px, env(safe-area-inset-right));
+}
+
+@keyframes bg1-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes bg1-rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+
+@keyframes bg1-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 @layer base {
   html {
-    @apply touch-manipulation overflow-hidden bg-white text-black;
+    @apply overflow-hidden bg-canvas font-sans text-ink antialiased;
+
+    color-scheme: dark;
+    font-size: 16px;
+    line-height: 1.5;
+    letter-spacing: -0.006em;
+    touch-action: manipulation;
+    overscroll-behavior: none;
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
   }
 
   html * {
@@ -44,11 +111,17 @@
   }
 
   body {
-    @apply fixed inset-0 overflow-auto underline-offset-2;
+    @apply fixed inset-0 overflow-auto;
+
+    overscroll-behavior: none;
+    text-underline-offset: 3px;
   }
 
-  p {
-    @apply my-4;
+  h1,
+  h2,
+  h3,
+  h4 {
+    letter-spacing: -0.02em;
   }
 
   h2 {
@@ -56,24 +129,15 @@
   }
 
   h3 {
-    @apply mt-4 text-lg;
+    @apply mt-6 text-base leading-snug font-semibold;
   }
 
-  option {
-    @apply bg-white text-black;
+  p {
+    @apply my-3;
   }
 
-  input[type='checkbox'],
-  input[type='radio'] {
-    @apply w-5 h-5;
-  }
-
-  button,
-  select {
-    @apply select-none;
-  }
-
-  b {
+  b,
+  strong {
     @apply font-semibold;
   }
 
@@ -86,6 +150,431 @@
   }
 
   a {
-    @apply text-bg1-blue underline;
+    @apply text-ink underline;
+
+    text-decoration-color: var(--color-muted);
+  }
+
+  /* Digits keep their width, so clocks and wait times don't shift as they
+     change. */
+  time {
+    font-variant-numeric: tabular-nums;
+  }
+
+  option {
+    @apply bg-surface text-ink;
+  }
+
+  a,
+  button,
+  input,
+  label,
+  select,
+  textarea {
+    touch-action: manipulation;
+  }
+
+  button,
+  label,
+  select {
+    @apply select-none;
+
+    -webkit-touch-callout: none;
+  }
+
+  button:not(:disabled),
+  label:has(input:not(:disabled)) {
+    cursor: pointer;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-ink);
+    outline-offset: 2px;
+  }
+
+  input[type='checkbox'],
+  input[type='radio'] {
+    @apply m-0 size-5.5 shrink-0 appearance-none border-[1.5px] border-line-strong bg-transparent bg-center bg-no-repeat align-middle;
+
+    transition:
+      background-color 120ms ease,
+      border-color 120ms ease;
+  }
+
+  input[type='checkbox'] {
+    @apply rounded-md;
+  }
+
+  input[type='radio'] {
+    @apply rounded-full;
+  }
+
+  input[type='checkbox']:checked {
+    @apply border-ink bg-ink;
+
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230a0a0a' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E");
+    background-size: 14px;
+  }
+
+  input[type='radio']:checked {
+    @apply border-ink;
+
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='7' fill='%23ededed'/%3E%3C/svg%3E");
+    background-size: 100%;
+  }
+
+  input:disabled {
+    opacity: 0.4;
+  }
+}
+
+@layer components {
+  /* Screen: a fixed column of header, scrolling body, and optional footer. */
+
+  .screen {
+    @apply fixed inset-0 flex flex-col bg-canvas;
+  }
+
+  .screen-header {
+    @apply shrink-0 border-b border-line bg-canvas px-gutter;
+
+    padding-top: env(safe-area-inset-top);
+  }
+
+  .screen-header-bar {
+    @apply flex min-h-13 items-center gap-1;
+  }
+
+  .screen-title {
+    @apply min-w-0 flex-1 truncate text-[17px] font-semibold;
+  }
+
+  .screen-actions {
+    @apply -mr-2 flex shrink-0 flex-wrap items-center justify-end gap-1 empty:hidden;
+  }
+
+  /* Buttons in the header are quiet, whatever variant they ask for. */
+  .screen-actions .btn {
+    @apply border-transparent bg-transparent px-2.5 text-ink;
+  }
+
+  .screen-subhead {
+    @apply flex flex-col gap-2.5 pb-3 text-sm text-muted empty:hidden;
+  }
+
+  /* The body only fades in. A transform here would make it the containing
+     block of the fixed overlays, toasts, and action bars rendered inside. */
+  .screen-body {
+    @apply relative flex-1 overflow-x-hidden overflow-y-auto px-gutter pb-6;
+
+    overscroll-behavior: contain;
+    animation: bg1-fade-in 160ms ease-out;
+  }
+
+  .screen-footer {
+    @apply relative shrink-0 border-t border-line bg-canvas;
+
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  /* Bottom navigation */
+
+  .tab-bar {
+    @apply flex items-stretch px-gutter;
+  }
+
+  .tab {
+    @apply relative flex min-h-14 flex-1 flex-col items-center justify-center gap-1 text-[11px] leading-none font-medium text-muted;
+
+    transition:
+      color 120ms ease,
+      opacity 120ms ease;
+  }
+
+  .tab:active {
+    opacity: 0.6;
+  }
+
+  .tab[aria-current='page'] {
+    @apply text-ink;
+  }
+
+  /* The active tab is also marked by a bar, not by color alone. */
+  .tab[aria-current='page']::before {
+    @apply absolute -top-px left-1/2 h-0.5 w-6 -translate-x-1/2 rounded-full bg-ink;
+
+    content: '';
+  }
+
+  /* Buttons */
+
+  .btn {
+    @apply relative inline-flex h-10 min-w-10 shrink-0 items-center justify-center gap-1.5 rounded-control border border-transparent px-3.5 text-[15px] leading-none font-medium whitespace-nowrap;
+
+    transition:
+      opacity 120ms ease,
+      background-color 120ms ease,
+      border-color 120ms ease;
+  }
+
+  /* Extends the tap target to at least 44px without changing the layout. */
+  .btn::before {
+    @apply absolute -inset-x-0.5 -inset-y-1;
+
+    content: '';
+  }
+
+  .btn:disabled {
+    opacity: 0.4;
+  }
+
+  .btn-primary {
+    @apply border-ink bg-ink text-canvas;
+  }
+
+  .btn-primary:active:not(:disabled) {
+    opacity: 0.75;
+  }
+
+  .btn-secondary {
+    @apply border-line bg-surface text-ink;
+  }
+
+  .btn-quiet {
+    @apply bg-transparent text-ink;
+  }
+
+  .btn-danger {
+    @apply border-danger/40 bg-surface text-danger;
+  }
+
+  .btn-secondary:active:not(:disabled),
+  .btn-quiet:active:not(:disabled),
+  .btn-danger:active:not(:disabled) {
+    @apply bg-pressed;
+  }
+
+  /* A secondary button on a surface is one step lighter than the surface, so
+     it still reads as a button. */
+  .list .btn-secondary,
+  .card .btn-secondary,
+  .sheet .btn-secondary {
+    @apply border-line-strong bg-pressed;
+  }
+
+  .list .btn-secondary:active:not(:disabled),
+  .card .btn-secondary:active:not(:disabled),
+  .sheet .btn-secondary:active:not(:disabled) {
+    @apply bg-line;
+  }
+
+  .btn-sm {
+    @apply h-8 min-w-8 rounded-[7px] px-2.5 text-[13px];
+  }
+
+  .btn-sm::before {
+    @apply -inset-y-1.5;
+  }
+
+  .btn-full {
+    @apply flex h-12 w-full text-base font-semibold;
+  }
+
+  .btn-full::before {
+    content: none;
+  }
+
+  /* Grouped list: one bordered container with hairlines between its rows. */
+
+  .list {
+    @apply m-0 list-none overflow-hidden rounded-card border border-line bg-surface p-0;
+  }
+
+  .list > * + * {
+    @apply border-t border-line;
+  }
+
+  .row {
+    @apply flex min-h-13 w-full items-center gap-3 px-3.5 py-2.5 text-left;
+
+    transition: background-color 120ms ease;
+  }
+
+  a.row,
+  button.row,
+  label.row:has(input:not(:disabled)) {
+    @apply active:bg-pressed;
+  }
+
+  a.row {
+    @apply no-underline;
+  }
+
+  .row-title {
+    @apply min-w-0 flex-1 font-medium;
+  }
+
+  .row-detail {
+    @apply text-sm text-muted;
+  }
+
+  .section-title {
+    @apply mt-6 mb-2 px-1 text-[13px] leading-snug font-medium tracking-normal text-muted;
+  }
+
+  .card {
+    @apply rounded-card border border-line bg-surface p-4;
+  }
+
+  /* Secondary copy: descriptions, hints, footnotes. */
+  .note {
+    @apply text-sm text-muted;
+  }
+
+  /* An empty, loading, or error state: a short centered message. */
+  .empty-state {
+    @apply my-12 px-6 text-center text-[15px] text-muted;
+  }
+
+  /* Badges */
+
+  .badge {
+    @apply inline-flex h-5.5 shrink-0 items-center gap-1 rounded-full border border-line-strong px-2 text-xs leading-none font-medium whitespace-nowrap text-ink;
+  }
+
+  .badge-solid {
+    @apply border-ink bg-ink text-canvas;
+  }
+
+  .badge-muted {
+    @apply border-line text-muted;
+  }
+
+  .badge-danger {
+    @apply border-danger/40 text-danger;
+  }
+
+  /* Form controls */
+
+  .field {
+    @apply flex min-w-0 flex-col gap-1.5;
+  }
+
+  .field-label {
+    @apply text-[13px] leading-snug font-medium text-muted;
+  }
+
+  .input {
+    @apply h-11 w-full rounded-control border border-line bg-surface px-3 text-base text-ink outline-none placeholder:text-faint focus:border-line-strong;
+
+    transition: border-color 120ms ease;
+  }
+
+  /* A radio button drawn as a checkmark, for the options of a menu. */
+  input[type='radio'].menu-check {
+    @apply border-transparent outline-none;
+  }
+
+  /* Keyboard focus lights up the whole row instead of the hidden circle. */
+  .row:has(.menu-check:focus-visible) {
+    @apply bg-pressed;
+  }
+
+  input[type='radio'].menu-check:checked {
+    @apply border-transparent;
+
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ededed' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E");
+    background-size: 18px;
+  }
+
+  /* Overlays */
+
+  .overlay {
+    @apply fixed inset-0 z-10 flex justify-center bg-black/60;
+
+    overscroll-behavior: contain;
+    animation: bg1-fade-in 160ms ease-out;
+  }
+
+  .overlay-center {
+    @apply items-center p-4;
+  }
+
+  .overlay-bottom {
+    @apply items-end px-2 pt-10;
+
+    padding-bottom: max(8px, env(safe-area-inset-bottom));
+  }
+
+  /* A panel that rises from the bottom edge: menus, pickers, confirmations. */
+  .sheet {
+    @apply flex max-h-full w-full max-w-115 flex-col overflow-hidden rounded-sheet border border-line bg-surface text-ink;
+
+    box-shadow: 0 16px 48px rgb(0 0 0 / 0.5);
+    animation: bg1-rise-in 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+
+  .sheet-title {
+    @apply mt-0 px-4 pt-4 pb-2 text-[13px] leading-snug font-medium tracking-normal text-muted;
+  }
+
+  .sheet-body {
+    @apply min-h-0 overflow-y-auto;
+
+    overscroll-behavior: contain;
+  }
+
+  /* A brief message that floats above the bottom bar. */
+  .toast {
+    @apply fixed inset-x-4 z-20 mx-auto flex max-w-107 items-center gap-2.5 rounded-card border border-line-strong bg-pressed px-3.5 py-3 text-[15px] leading-snug font-medium text-ink;
+
+    bottom: calc(88px + env(safe-area-inset-bottom));
+    box-shadow: 0 8px 32px rgb(0 0 0 / 0.5);
+    animation: bg1-rise-in 180ms ease-out;
+  }
+
+  .spinner {
+    @apply size-6 rounded-full border-2 border-line-strong border-t-ink;
+
+    animation: bg1-spin 700ms linear infinite;
+  }
+
+  /* The screen's primary action, pinned to the bottom edge. The spacer goes
+     in the page flow so the content can scroll clear of the bar. */
+
+  .action-bar {
+    @apply fixed inset-x-0 bottom-0 z-5 border-t border-line bg-canvas px-gutter pt-3;
+
+    padding-bottom: calc(12px + env(safe-area-inset-bottom));
+  }
+
+  .action-bar > .btn {
+    @apply mx-auto max-w-107;
+  }
+
+  .action-bar-spacer {
+    height: calc(72px + env(safe-area-inset-bottom));
+  }
+}
+
+/* Outside of any layer so no utility class can undo it: iOS zooms the page
+   when a focused control's text is smaller than 16px. */
+input,
+select,
+textarea {
+  font-size: max(16px, 1em);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 1ms !important;
+    transition-duration: 1ms !important;
+  }
+
+  /* A spinner that doesn't turn looks like a stalled app. */
+  .spinner {
+    animation-duration: 1400ms !important;
   }
 }

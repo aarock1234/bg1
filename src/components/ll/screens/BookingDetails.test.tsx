@@ -20,7 +20,6 @@ import { Booking, DasBooking } from '@/api/itinerary';
 import { OfferError } from '@/api/ll';
 import ParkContext from '@/contexts/ParkContext';
 import RebookingContext from '@/contexts/RebookingContext';
-import { DEFAULT_THEME } from '@/contexts/ThemeContext';
 import { act, click, nav, screen, see, setTime, waitFor } from '@/testing';
 
 import BookingDetails from './BookingDetails';
@@ -102,9 +101,6 @@ describe('BookingDetails', () => {
 
   it('shows Multiple Experiences LL details', async () => {
     const { container } = renderComponent(multiExp);
-    expect(see('Your Lightning Lane').parentNode?.parentNode).toHaveClass(
-      DEFAULT_THEME.bg
-    );
     see('Multiple Experiences');
     see.time(multiExp.start.time);
     see('Park Close');
@@ -138,15 +134,15 @@ describe('BookingDetails', () => {
     expect(container).not.toHaveTextContent('was temporarily unavailable');
   });
 
-  it('uses park theme for single-park Multiple Experiences LL', async () => {
+  it('only lists parks that have choices for single-park Multiple Experiences LL', async () => {
     renderComponent({
       ...multiExp,
       choices: multiExp.choices?.filter(exp => exp.park === booking.park),
     });
     see('Multiple Experiences');
-    expect(see('Your Lightning Lane').parentNode?.parentNode).toHaveClass(
-      mk.theme.bg
-    );
+    expect(
+      screen.getAllByRole('heading', { level: 3 }).map(h => h.textContent)
+    ).toEqual([mk.name, 'Your Party']);
   });
 
   it('shows all-day experience redemption details', async () => {

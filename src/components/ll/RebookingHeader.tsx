@@ -22,18 +22,16 @@ export default function RebookingHeader<P>({ back }: RebookingHeaderProps<P>) {
 
   return (
     <div>
-      <div className="-mx-3">
-        <h2 className="mt-0 pb-1 text-sm">Modifying Reservation</h2>
-        <div className="px-3 py-2 bg-white text-black text-base font-normal normal-case text-left">
-          <BookingListing
-            booking={rebooking.current}
-            button={
-              <Button type="small" back={back} onClick={rebooking.end}>
-                Keep
-              </Button>
-            }
-          />
-        </div>
+      <h2 className="section-title mt-0">Modifying Reservation</h2>
+      <div className="list text-base text-ink">
+        <BookingListing
+          booking={rebooking.current}
+          button={
+            <Button type="small" back={back} onClick={rebooking.end}>
+              Keep
+            </Button>
+          }
+        />
       </div>
     </div>
   );

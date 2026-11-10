@@ -1,7 +1,4 @@
-import { use } from 'react';
-
 import { Time } from '@/components/Time';
-import ThemeContext from '@/contexts/ThemeContext';
 import { DateTime, ParkTime } from '@/datetime';
 
 type TimeBannerProps = {
@@ -9,15 +6,15 @@ type TimeBannerProps = {
   dropTime?: ParkTime;
 };
 
+// A line of upcoming times: when the party can next book, and when the park
+// next releases more Lightning Lane availability.
 export default function TimeBanner({ bookTime, dropTime }: TimeBannerProps) {
-  const theme = use(ThemeContext);
-
   if (!bookTime && !dropTime) {
     return null;
   }
 
   return (
-    <div className={`flex justify-center gap-x-10 ${theme.bg}`}>
+    <div className="flex gap-x-5 px-1">
       <LabeledTime label="Book" time={bookTime} />
       <LabeledTime label="Drop" time={dropTime} />
     </div>
@@ -43,9 +40,11 @@ function LabeledTime({ label, time }: LabeledTimeProps) {
     <div>
       {label}:{' '}
       {isUpcoming ? (
-        <Time time={time} />
+        <Time time={time} className="font-medium text-ink" />
       ) : (
-        <time dateTime={`${time}`}>now</time>
+        <time dateTime={`${time}`} className="font-medium text-ink">
+          now
+        </time>
       )}
     </div>
   );

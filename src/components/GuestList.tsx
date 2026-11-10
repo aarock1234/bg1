@@ -1,6 +1,6 @@
 import useFlash from '@/hooks/useFlash';
 
-const AVATAR_SIZE_PX = 48;
+const AVATAR_SIZE_PX = 36;
 
 export type Guest = {
   id: string;
@@ -22,6 +22,8 @@ type GuestListProps<T extends Guest> = {
   conflicts?: InfoById;
 };
 
+// A grouped list of guests. A selectable list has a checkbox on each row, and
+// the whole row toggles it.
 export default function GuestList<T extends Guest>({
   guests,
   selectable,
@@ -40,7 +42,7 @@ export default function GuestList<T extends Guest>({
 
   return (
     <>
-      <ul className="mt-4">
+      <ul className="list mt-3">
         {guests.map(guest => {
           const isSelected = selectedGuests.has(guest);
           const isDisabled = isLimitReached && !isSelected;
@@ -48,21 +50,21 @@ export default function GuestList<T extends Guest>({
           return (
             <li
               key={guest.id}
-              className="px-3 py-1"
               onClick={() => flash(isDisabled ? 'Selection limit reached' : '')}
             >
-              <label className="flex items-center">
+              <label className="row">
                 {selectable && (
                   <input
                     type="checkbox"
                     checked={isSelected}
                     disabled={isDisabled}
                     onChange={() => selectable.onToggle(guest)}
-                    className="mr-3"
                   />
                 )}
                 <Avatar guest={guest} />
-                <span className="leading-tight">
+                <span
+                  className={`row-title leading-tight ${isDisabled ? 'text-muted' : ''}`}
+                >
                   {guest.name}
                   <Conflict reason={conflicts?.[guest.id]} />
                 </span>
@@ -83,14 +85,14 @@ type AvatarProps = {
 // Shows the guest's picture, or their initial when they don't have one.
 function Avatar({ guest }: AvatarProps) {
   return (
-    <span className="w-12 h-12 leading-12 mr-3 rounded-full text-3xl font-bold text-center bg-gray-400 text-white">
+    <span className="grid size-9 shrink-0 place-items-center overflow-hidden rounded-full border border-line bg-pressed text-sm font-semibold text-ink">
       {guest.avatarImageUrl ? (
         <img
           src={guest.avatarImageUrl}
           alt=""
           width={AVATAR_SIZE_PX}
           height={AVATAR_SIZE_PX}
-          className="rounded-full"
+          className="size-full object-cover"
         />
       ) : (
         <span aria-hidden="true">{guest.name[0]}</span>
@@ -110,7 +112,7 @@ function Conflict({ reason }: ConflictProps) {
   }
 
   return (
-    <span className="block text-xs font-semibold text-red-d uppercase">
+    <span className="mt-1 block text-[11px] font-medium tracking-wide text-danger uppercase">
       {reason.replaceAll('_', ' ')}
     </span>
   );

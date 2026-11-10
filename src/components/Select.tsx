@@ -12,20 +12,22 @@ export default function Select<K extends string, V = K>(
   return <MenuButton {...props} menuType={SelectMenu} />;
 }
 
+// Lists the options as rows. The radio button of the selected row shows as a
+// checkmark at its right end.
 export function SelectMenu<K extends string, V = K>(props: MenuProps<K, V>) {
   const { options, selected } = props;
 
   return (
-    <ul className="dividers overflow-auto">
+    <ul className="pb-2">
       {[...options].map(([key, option]) => (
         <li key={option.text}>
-          <label className="flex items-center gap-x-2.5 px-4">
+          <label className="row px-4 has-checked:font-medium">
             <input
               type="radio"
               name={RADIO_GROUP_NAME}
               value={key}
               defaultChecked={key === selected}
-              className="w-4 h-4 shrink-0"
+              className="menu-check order-last ml-auto"
             />{' '}
             {option.icon && <span aria-hidden="true">{option.icon}</span>}{' '}
             {option.text}

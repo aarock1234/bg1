@@ -16,13 +16,13 @@ export default function ParkSelect(props: ParkSelectProps) {
   const { park, setPark } = use(ParkContext);
   const rebooking = use(RebookingContext);
 
+  // The options have no icon, so the button shows the park's name.
   const parkOptions = useMemo(() => {
     return new Map(
       parks.map(park => [
         park.id,
         {
           value: park,
-          icon: park.icon,
           text: park.name,
         },
       ])

@@ -4,6 +4,7 @@ import { Guest, JoinQueueConflicts, JoinQueueResult, Queue } from '@/api/vq';
 import FloatingButton from '@/components/FloatingButton';
 import GuestList from '@/components/GuestList';
 import NavContext from '@/contexts/NavContext';
+import AlertIcon from '@/icons/AlertIcon';
 
 import QueueScreen from './QueueScreen';
 import SelectQueue from './SelectQueue';
@@ -32,13 +33,29 @@ export default function BGResult({ queue, guests, result }: BGResultProps) {
           conflicts={conflicts}
         />
       ) : (
-        <>
-          <h3>Sorry!</h3>
-          <p>A boarding group could not be obtained. Go back and try again.</p>
-          <GuestList guests={failedGuests} conflicts={conflicts} />
-        </>
+        <NoBoardingGroup failedGuests={failedGuests} conflicts={conflicts} />
       )}
     </QueueScreen>
+  );
+}
+
+type NoBoardingGroupProps = {
+  failedGuests: Guest[];
+  conflicts: JoinQueueConflicts;
+};
+
+function NoBoardingGroup({ failedGuests, conflicts }: NoBoardingGroupProps) {
+  return (
+    <>
+      <div className="card mt-4">
+        <AlertIcon className="w-6 text-danger" />
+        <h3 className="mt-3">Sorry!</h3>
+        <p className="note mb-0">
+          A boarding group could not be obtained. Go back and try again.
+        </p>
+      </div>
+      <GuestList guests={failedGuests} conflicts={conflicts} />
+    </>
   );
 }
 
@@ -69,19 +86,23 @@ function BoardingGroupObtained({
 
   return (
     <>
-      <h3>Congratulations! 🎉</h3>
-      <p>You joined the virtual queue!</p>
-      <p className="text-lg font-semibold">Boarding Group: {boardingGroup}</p>
+      <div className="card mt-4 py-6 text-center">
+        <h3 className="mt-0">Congratulations! 🎉</h3>
+        <p className="note mt-1">You joined the virtual queue!</p>
+        <p className="mt-4 mb-0 text-[28px] leading-tight font-semibold tracking-tight tabular-nums">
+          Boarding Group: {boardingGroup}
+        </p>
+      </div>
       <GuestList guests={joinedGuests} />
 
       {hasConflicts && (
         <>
-          <p className="font-semibold">These guests could not join:</p>
+          <p className="section-title">These guests could not join:</p>
           <GuestList guests={failedGuests} conflicts={conflicts} />
         </>
       )}
 
-      <p>
+      <p className="note mt-4 px-1">
         Refer to the My Disney Experience app for return time and other
         information.
       </p>

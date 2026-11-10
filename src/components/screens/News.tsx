@@ -8,7 +8,7 @@ export default function News() {
       <iframe
         src={siteUrl('news.html')}
         sandbox=""
-        className="absolute inset-0 w-full h-full"
+        className="absolute inset-0 h-full w-full border-0 bg-canvas"
       />
     </Screen>
   );

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 
+import { JobView } from '@/api/bg1-server';
 import { ParkHours } from '@/api/ll';
 import { ReturnTimeRange } from '@/api/ll/auto-book';
 import { returnTimeSlots } from '@/api/ll/return-time-slots';
@@ -7,14 +8,17 @@ import Alert from '@/components/Alert';
 import Button from '@/components/Button';
 import Select from '@/components/Select';
 import { DateTime, ParkTime, formatTime } from '@/datetime';
-import { AutoBookStatus } from '@/hooks/useAutoBook';
+import { ServerJobState } from '@/hooks/useServerJob';
+import { canNotify } from '@/push';
 
-import { attemptMessage, failureMessage } from './auto-book-messages';
-
-const STOP_BUTTON_COLOR = 'bg-red-600 text-white';
+import {
+  attemptMessage,
+  bookedMessage,
+  rejectionMessage,
+} from './auto-book-messages';
 
 type AutoBookProps = {
-  status: AutoBookStatus;
+  state: ServerJobState;
 
   // The park's hours on the day being booked, once an offer has reported them.
   parkHours?: ParkHours;
@@ -25,6 +29,7 @@ type AutoBookProps = {
 
   onStart: (range: ReturnTimeRange) => void;
   onStop: () => void;
+  onDismiss: () => void;
 };
 
 type TimeSelectProps = {
@@ -39,8 +44,12 @@ type TimeOption = {
   text: string;
 };
 
-type ProgressProps = {
-  status: AutoBookStatus;
+type SearchingProps = {
+  job: JobView;
+};
+
+type OutcomeProps = {
+  state: ServerJobState;
 };
 
 function findSlot(
@@ -65,54 +74,87 @@ function TimeSelect(props: TimeSelectProps) {
   }
 
   return (
-    <label className="flex items-center gap-x-2 font-semibold">
-      {label}
+    <label className="field">
+      <span className="field-label">{label}</span>
       <Select
         options={options}
         selected={selected.toString()}
         onChange={time => onChange(ParkTime.from(time))}
         title={`${label} Return Time`}
         disabled={disabled}
+        className="w-full tabular-nums"
       />
     </label>
   );
 }
 
-function Progress({ status }: ProgressProps) {
-  if (status.kind === 'failed') {
-    return (
-      <Alert title="Auto Booking Stopped">
-        <p>{failureMessage(status.error)}</p>
-      </Alert>
-    );
-  }
-
-  if (status.kind !== 'searching') {
-    return null;
-  }
-
-  const { attempts, lastAttempt } = status;
+function Searching({ job }: SearchingProps) {
+  const { attempts, lastAttempt } = job;
 
   return (
-    <div role="status">
-      <p>Looking for a return time…</p>
-      {lastAttempt && (
-        <p>
-          {attemptMessage(lastAttempt)} Checked {attempts}{' '}
-          {attempts === 1 ? 'time' : 'times'} so far.
+    <div
+      role="status"
+      className="mt-4 flex gap-3 rounded-control border border-line-strong bg-pressed p-3"
+    >
+      <div className="spinner mt-0.5 size-4 shrink-0" />
+      <div className="min-w-0">
+        <p className="my-0 text-[15px] font-medium">
+          Looking for a return time…
         </p>
-      )}
+        <p className="note mt-1 mb-0">
+          {lastAttempt && `${attemptMessage(lastAttempt)} `}
+          Checked {attempts} {attempts === 1 ? 'time' : 'times'} so far. You can
+          close BG1; it keeps looking.
+        </p>
+      </div>
     </div>
   );
 }
 
-// Lets the guest pick a range of return times and have BG1 keep checking
-// until it can book one of them.
+// Shows how a search ended, or why it couldn't be started.
+function Outcome({ state }: OutcomeProps) {
+  if (state.kind === 'rejected') {
+    return (
+      <Alert title="Auto Booking Didn't Start" className="bg-pressed">
+        <p>{rejectionMessage(state.error)}</p>
+      </Alert>
+    );
+  }
+
+  if (state.kind !== 'tracking') {
+    return null;
+  }
+
+  const { status, result, failure } = state.job;
+
+  if (status === 'booked' && result) {
+    return (
+      <Alert title="Lightning Lane Booked" className="bg-pressed">
+        <p>{bookedMessage(result)}. It is in your plans.</p>
+      </Alert>
+    );
+  }
+
+  if (failure) {
+    return (
+      <Alert title="Auto Booking Stopped" className="bg-pressed">
+        <p>{failure.message}</p>
+      </Alert>
+    );
+  }
+
+  return null;
+}
+
+// Lets the guest pick a range of return times and have BG1's server keep
+// checking until it can book one of them, even after the app is closed.
 export default function AutoBook(props: AutoBookProps) {
-  const { status, parkHours, isForToday, onStart, onStop } = props;
+  const { state, parkHours, isForToday, onStart, onStop, onDismiss } = props;
   const [chosenEarliest, setChosenEarliest] = useState<ParkTime>();
   const [chosenLatest, setChosenLatest] = useState<ParkTime>();
-  const isSearching = status.kind === 'searching';
+  const trackedJob = state.kind === 'tracking' ? state.job : undefined;
+  const isSearching = trackedJob?.status === 'searching';
+  const isBusy = isSearching || state.kind === 'starting';
 
   const slots = returnTimeSlots({
     parkHours,
@@ -141,39 +183,45 @@ export default function AutoBook(props: AutoBookProps) {
   function toggleSearch(): void {
     if (isSearching) {
       onStop();
-    } else {
-      onStart(range);
+      return;
     }
+
+    // Starting again clears the outcome of the search before it.
+    onDismiss();
+    onStart(range);
   }
 
   return (
-    <section className="mt-6">
-      <h3>Auto Booking</h3>
-      <p>
-        BG1 can keep checking and book the first return time that falls within
-        your range. Keep this screen open while it looks.
+    <section className="card mt-6">
+      <h3 className="mt-0">Auto Booking</h3>
+      <p className="note mt-1">
+        BG1 keeps checking and books the first return time that falls within
+        your range, even with your phone closed.
+        {canNotify() && ' You get a notification when it does.'}
       </p>
-      <div className="flex flex-wrap gap-x-6 gap-y-2 mt-3">
+      <div className="mt-4 grid grid-cols-2 gap-3">
         <TimeSelect
           label="Earliest"
           times={slots}
           selected={earliest}
-          disabled={isSearching}
+          disabled={isBusy}
           onChange={setChosenEarliest}
         />
         <TimeSelect
           label="Latest"
           times={latestSlots}
           selected={latest}
-          disabled={isSearching}
+          disabled={isBusy}
           onChange={setChosenLatest}
         />
       </div>
-      <Progress status={status} />
+      {trackedJob && isSearching && <Searching job={trackedJob} />}
+      <Outcome state={state} />
       <Button
         type="full"
         className="mt-4"
-        color={isSearching ? STOP_BUTTON_COLOR : undefined}
+        variant={isSearching ? 'danger' : 'secondary'}
+        disabled={state.kind === 'starting'}
         onClick={toggleSearch}
       >
         {isSearching ? 'Stop Auto Booking' : 'Start Auto Booking'}

@@ -1,7 +1,3 @@
 export default function NoPlans() {
-  return (
-    <p className="font-semibold text-center uppercase text-gray-500">
-      No existing plans
-    </p>
-  );
+  return <p className="card note my-0 py-5 text-center">No existing plans</p>;
 }

@@ -10,7 +10,6 @@ import kvdb from '@/kvdb';
 const LOGIN_RESORT_KEY = 'bg1.home.loginResort';
 
 const MINUTES_PER_HOUR = 60;
-const STATUS_TOO_MANY_REQUESTS = 429;
 
 const RESORT_NAMES: Record<ResortId, string> = {
   WDW: 'Walt Disney World',
@@ -66,10 +65,6 @@ function storedLogin(resortId: ResortId): AuthData | undefined {
 function failureMessage(error: unknown): string {
   if (!(error instanceof ServerRequestFailed)) {
     return 'Something unexpected went wrong.';
-  }
-
-  if (error.status === STATUS_TOO_MANY_REQUESTS) {
-    return 'Too many checks in a row. Wait a minute and try again.';
   }
 
   return `The server couldn't be reached (status ${error.status}).`;

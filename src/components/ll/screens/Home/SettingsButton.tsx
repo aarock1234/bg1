@@ -18,17 +18,19 @@ type MenuOption = {
   action: () => void;
 };
 
+// The last item of Home's bottom navigation. It opens a menu instead of
+// switching tabs.
 export default function SettingsButton() {
   const { goTo } = use(NavContext);
   const [options] = useState<MenuOption[]>([
     {
       text: 'Party Selection',
-      icon: <UserIcon />,
+      icon: <UserIcon className="w-5" />,
       action: () => goTo(<PartySelector />),
     },
     {
       text: 'Log Out',
-      icon: <ExitIcon />,
+      icon: <ExitIcon className="w-5" />,
       action: () => authStore.deleteData(),
     },
   ]);
@@ -52,26 +54,31 @@ export default function SettingsButton() {
   return (
     <>
       <button
-        className="absolute top-0 right-0 h-full px-4"
+        className="tab"
         onClick={() => setIsMenuOpen(true)}
         title="Settings Menu"
+        aria-label="Settings Menu"
       >
-        <SettingsIcon />
+        <div>
+          <SettingsIcon className="w-5.5" />
+        </div>
+        <div>Settings</div>
       </button>
 
       {isMenuOpen && (
-        <Overlay onClick={closeMenuOnOutsideClick} data-testid="shade">
-          <ul
-            className="dividers overflow-auto min-w-[50%] max-h-[90%] rounded-lg bg-white text-black text-lg font-normal"
-            ref={listRef}
-          >
+        <Overlay
+          position="bottom"
+          onClick={closeMenuOnOutsideClick}
+          data-testid="shade"
+        >
+          <ul className="sheet py-2" ref={listRef}>
             {options.map(option => (
               <li key={option.text}>
                 <button
-                  className="flex items-center w-full px-4"
+                  className="row px-4 font-medium"
                   onClick={() => chooseOption(option)}
                 >
-                  <span className="mr-2.5 text-gray-700" aria-hidden>
+                  <span className="text-muted" aria-hidden>
                     {option.icon}
                   </span>
                   {option.text}

@@ -39,7 +39,7 @@ export default function OfferDetails({
 
   return (
     <>
-      <div className="flex items-center">
+      <div className="card mt-4 py-3 *:mt-0">
         <ReturnTime
           {...offer}
           button={

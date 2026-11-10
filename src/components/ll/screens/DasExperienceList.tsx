@@ -7,6 +7,7 @@ import Screen from '@/components/Screen';
 import ClientsContext from '@/contexts/ClientsContext';
 import { DateTime, ParkTime } from '@/datetime';
 import useDataLoader from '@/hooks/useDataLoader';
+import ChevronRightIcon from '@/icons/ChevronRightIcon';
 
 const SECONDS_PER_MINUTE = 60;
 
@@ -38,25 +39,46 @@ type DasExperienceListProps = {
 };
 
 type ExperienceSublistsProps = {
-  park: Park;
-
   // Undefined until the experiences have loaded.
   experiences: Experience[] | undefined;
   onSelect: SelectExperience;
 };
 
 type SublistProps = {
-  park: Park;
   experiences: Experience[];
   heading: string;
   onSelect: SelectExperience;
+};
+
+type WaitButtonProps = {
+  minutes: number;
+  onClick: () => void;
 };
 
 function minutesUntil(time: ParkTime, now: ParkTime): number {
   return Math.round((+time - +now) / SECONDS_PER_MINUTE);
 }
 
-function Sublist({ park, experiences, heading, onSelect }: SublistProps) {
+// Selects an experience. Its label is how long the party would wait for the
+// return time.
+function WaitButton({ minutes, onClick }: WaitButtonProps) {
+  return (
+    <Button
+      className="min-w-24 justify-between pr-2 tabular-nums"
+      onClick={onClick}
+    >
+      <span>
+        {minutes}{' '}
+        <abbr title="minutes" className="text-[13px] font-normal text-muted">
+          min.
+        </abbr>
+      </span>
+      <ChevronRightIcon className="w-4 text-muted" />
+    </Button>
+  );
+}
+
+function Sublist({ experiences, heading, onSelect }: SublistProps) {
   if (experiences.length === 0) {
     return null;
   }
@@ -64,31 +86,24 @@ function Sublist({ park, experiences, heading, onSelect }: SublistProps) {
   const now = DateTime.now().time;
 
   return (
-    <div className={`mt-4 rounded-sm overflow-hidden ${park.theme.bg}`}>
-      <h3 className="mt-0 py-1 text-white text-xs font-semibold text-center uppercase">
-        {heading}
-      </h3>
-      <ul className="bg-white/90 leading-snug">
+    <section>
+      <h3 className="section-title">{heading}</h3>
+      <ul className="list">
         {experiences.map(experience => (
-          <li className="flex items-center pt-3 last:pb-3" key={experience.id}>
-            <div className="flex-1 px-2">{experience.name}</div>
-            <div className="px-2">
-              <Button onClick={() => onSelect(experience)}>
-                <span className="min-w-16">
-                  {minutesUntil(experience.time, now)}{' '}
-                  <abbr title="minutes">min.</abbr>
-                </span>
-              </Button>
-            </div>
+          <li className="row" key={experience.id}>
+            <div className="row-title leading-snug">{experience.name}</div>
+            <WaitButton
+              minutes={minutesUntil(experience.time, now)}
+              onClick={() => onSelect(experience)}
+            />
           </li>
         ))}
       </ul>
-    </div>
+    </section>
   );
 }
 
 function ExperienceSublists({
-  park,
   experiences,
   onSelect,
 }: ExperienceSublistsProps) {
@@ -97,12 +112,11 @@ function ExperienceSublists({
   }
 
   if (experiences.length === 0) {
-    return <p>No DAS experiences available</p>;
+    return <p className="empty-state">No DAS experiences available</p>;
   }
 
   return SUBLISTS.map(({ heading, type }) => (
     <Sublist
-      park={park}
       experiences={experiences.filter(experience => experience.type === type)}
       heading={heading}
       onSelect={onSelect}
@@ -132,11 +146,7 @@ export default function DasExperienceList({
 
   return (
     <Screen title="Select Experience" theme={park.theme}>
-      <ExperienceSublists
-        park={park}
-        experiences={experiences}
-        onSelect={onSelect}
-      />
+      <ExperienceSublists experiences={experiences} onSelect={onSelect} />
       {loaderElem}
     </Screen>
   );

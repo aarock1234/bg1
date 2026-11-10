@@ -1,7 +1,6 @@
-import { use, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
-import ThemeContext from '@/contexts/ThemeContext';
-import Icon from '@/icons/Icon';
+import ChevronDownIcon from '@/icons/ChevronDownIcon';
 
 import Button from './Button';
 import Overlay from './Overlay';
@@ -51,7 +50,6 @@ export default function MenuButton<K, V>(props: MenuButtonProps<K, V>) {
     menuType: Menu,
     ...buttonProps
   } = props;
-  const { bg } = use(ThemeContext);
   const [isMenuShown, setIsMenuShown] = useState(false);
   const [minTextWidth, setMinTextWidth] = useState(0);
   // Moving through the radio inputs with the arrow keys checks each one along
@@ -82,6 +80,10 @@ export default function MenuButton<K, V>(props: MenuButtonProps<K, V>) {
       return;
     }
 
+    // The width set by the last measurement would hide the width of the text.
+    const currentWidth = textElem.style.width;
+    textElem.style.width = '';
+
     let widestTextWidth = 0;
 
     for (const option of options.values()) {
@@ -90,6 +92,7 @@ export default function MenuButton<K, V>(props: MenuButtonProps<K, V>) {
     }
 
     textNode.nodeValue = currentText;
+    textElem.style.width = currentWidth;
     setMinTextWidth(widestTextWidth);
   }, [options]);
 
@@ -186,33 +189,32 @@ export default function MenuButton<K, V>(props: MenuButtonProps<K, V>) {
           icon
         ) : (
           <span
-            className="flex-1 truncate"
+            className="min-w-0 flex-auto truncate py-1 text-left"
             style={{
-              minWidth: `${minTextWidth}px`,
+              width: minTextWidth > 0 ? `${minTextWidth}px` : undefined,
             }}
             ref={buttonTextRef}
           >
             {buttonText ?? text}
           </span>
         )}
-        <DropdownArrowIcon />
+        <ChevronDownIcon className="w-4 text-muted" />
       </Button>
       {isMenuShown && (
         <Overlay
+          position="bottom"
           onChange={handleMenuChange}
           onClick={handleOverlayClick}
           onKeyDown={handleKeyDown}
           data-testid="shade"
         >
-          <div className="min-w-[min(50%,400px)] max-w-[400px] max-h-[90%] rounded-lg bg-white text-black">
-            {title && (
-              <h3
-                className={`mt-0 rounded-t-lg px-5 py-1 ${bg} text-white font-semibold text-center`}
-              >
-                {title}
-              </h3>
-            )}
-            <form aria-label={`${title} Selection`} ref={menuContainerRef}>
+          <div className="sheet">
+            {title && <h3 className="sheet-title">{title}</h3>}
+            <form
+              aria-label={`${title} Selection`}
+              className="sheet-body"
+              ref={menuContainerRef}
+            >
               <Menu options={options} selected={selected} onChange={onChange} />
             </form>
           </div>
@@ -240,12 +242,4 @@ function findButtonOption<K, V>(
   }
 
   return undefined;
-}
-
-function DropdownArrowIcon() {
-  return (
-    <Icon className="w-2.5 ml-2 shrink-0">
-      <path d="m6.8273 12.401-5.6333-7.7812a1.0212 1.0212 117.05 0 1 0.82716-1.62l11.958-2e-7a1.0212 1.0212 62.952 0 1 0.82714 1.62l-1.6438 2.2705a79984 79984 125.9 0 0-2.3456 3.2401l-1.6437 2.2706a1.4479 1.4479 180 0 1-2.3456 4.4e-5z" />
-    </Icon>
-  );
 }

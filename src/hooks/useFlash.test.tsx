@@ -5,15 +5,25 @@ import useFlash from './useFlash';
 
 jest.useFakeTimers();
 
+// An error is told apart from an alert by its icon, which is the only one
+// drawn in the accent color.
+const ERROR_ICON_CLASS = 'text-danger';
+
+function flashIcon(message: string) {
+  return see(message).querySelector('svg');
+}
+
 describe('Flash', () => {
   it('shows alert message', () => {
     render(<Flash message="hi" type="alert" />);
-    expect(see('hi')).toHaveClass('bg-yellow-200');
+    expect(see('hi')).toHaveRole('alert');
+    expect(flashIcon('hi')).not.toHaveClass(ERROR_ICON_CLASS);
   });
 
   it('shows error message', () => {
     render(<Flash message="oops" type="error" />);
-    expect(see('oops')).toHaveClass('bg-red-200');
+    expect(see('oops')).toHaveRole('alert');
+    expect(flashIcon('oops')).toHaveClass(ERROR_ICON_CLASS);
   });
 
   it('renders null when no message', () => {
@@ -40,10 +50,10 @@ describe('useFlash()', () => {
     see.no('oops');
 
     click('Alert');
-    expect(see('hi')).toHaveClass('bg-yellow-200');
+    expect(flashIcon('hi')).not.toHaveClass(ERROR_ICON_CLASS);
 
     click('Error');
-    expect(see('oops')).toHaveClass('bg-red-200');
+    expect(flashIcon('oops')).toHaveClass(ERROR_ICON_CLASS);
     act(() => {
       jest.runOnlyPendingTimers();
     });

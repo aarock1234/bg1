@@ -5,6 +5,9 @@ import TabsContext from '@/contexts/TabContext';
 import Screen, { ScreenProps } from './Screen';
 import TabButton from './TabButton';
 
+// A screen that belongs to a set of tabs. Its footer is the bottom navigation:
+// one button per tab, followed by the footer given to withTabs, which should
+// render items of the same shape (elements with the `tab` class).
 export default function Tab({
   title,
   buttons,
@@ -37,14 +40,12 @@ export default function Tab({
       buttons={buttons}
       subhead={subhead}
       footer={
-        <>
-          <div className="flex items-center justify-center">
-            {tabs.map(tab => (
-              <TabButton {...tab} key={tab.name} />
-            ))}
-          </div>
+        <nav className="tab-bar">
+          {tabs.map(tab => (
+            <TabButton {...tab} key={tab.name} />
+          ))}
           {footer}
-        </>
+        </nav>
       }
       ref={ref}
     >

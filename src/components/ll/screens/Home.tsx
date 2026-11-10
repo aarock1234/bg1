@@ -31,17 +31,17 @@ export type HomeTabProps = {
 const tabs = [
   {
     name: 'LL' as const,
-    icon: <LightningIcon />,
+    icon: <LightningIcon className="w-5.5" />,
     component: MultiPassList,
   },
   {
     name: 'Times' as const,
-    icon: <ClockIcon />,
+    icon: <ClockIcon className="w-5.5" />,
     component: TimesGuide,
   },
   {
     name: 'Plans' as const,
-    icon: <CalendarIcon />,
+    icon: <CalendarIcon className="w-5.5" />,
     component: Plans,
   },
 ];
@@ -50,6 +50,7 @@ type TabName = (typeof tabs)[number]['name'];
 
 const DEFAULT_TAB_NAME: TabName = 'LL';
 
+// Shown as the last item of the bottom navigation, after the tabs.
 const footer = <SettingsButton />;
 
 function isTabName(name: unknown): name is TabName {

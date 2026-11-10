@@ -1,25 +1,23 @@
-export type FlashType = 'alert' | 'error';
+import AlertIcon from '@/icons/AlertIcon';
+import InfoIcon from '@/icons/InfoIcon';
 
-const COLORS = {
-  alert: 'bg-yellow-200',
-  error: 'bg-red-200',
-};
+export type FlashType = 'alert' | 'error';
 
 type FlashProps = {
   message: string;
   type: FlashType;
 };
 
+// A brief message floating above the bottom of the screen. An error has its
+// own icon, in the accent color, so it isn't told apart by color alone.
 export default function Flash({ message, type }: FlashProps) {
   if (!message) {
     return null;
   }
 
   return (
-    <div
-      role="alert"
-      className={`fixed bottom-20 left-0 w-full p-2 font-semibold text-center ${COLORS[type]} text-gray-800`}
-    >
+    <div role="alert" className="toast">
+      {type === 'error' ? <AlertIcon className="text-danger" /> : <InfoIcon />}
       {message}
     </div>
   );

@@ -6,8 +6,8 @@ import Button from '@/components/Button';
 import Screen from '@/components/Screen';
 import RefreshButton from '@/components/ll/screens/RefreshButton';
 import ClientsContext from '@/contexts/ClientsContext';
-import ThemeContext from '@/contexts/ThemeContext';
 import useDataLoader from '@/hooks/useDataLoader';
+import ExitIcon from '@/icons/ExitIcon';
 import onVisible from '@/onVisible';
 
 import QueueListing from './QueueListing';
@@ -30,7 +30,6 @@ function compareQueues(a: Queue, b: Queue): number {
 
 export default function SelectQueue() {
   const { vq } = use(ClientsContext);
-  const theme = use(ThemeContext);
   const { loadData, loaderElem } = useDataLoader();
   const [queues, setQueues] = useState<Queue[]>();
 
@@ -52,20 +51,27 @@ export default function SelectQueue() {
     <Screen
       title="Virtual Queues"
       buttons={<RefreshButton name="Queues" onClick={refreshQueues} />}
-      footer={
-        <div className="p-2 text-right">
-          <Button
-            color={`bg-white/90 ${theme.text}`}
-            onClick={() => authStore.deleteData()}
-          >
-            Log Out
-          </Button>
-        </div>
-      }
     >
       {queues && <QueueList queues={queues} isLoaderShown={!!loaderElem} />}
+      <LogOutButton />
       {loaderElem}
     </Screen>
+  );
+}
+
+// Logging out is rarely wanted, so it sits quietly below the queues.
+function LogOutButton() {
+  return (
+    <div className="mt-6 flex justify-center">
+      <Button
+        variant="quiet"
+        className="text-muted"
+        onClick={() => authStore.deleteData()}
+      >
+        <ExitIcon className="w-4" />
+        Log Out
+      </Button>
+    </div>
   );
 }
 
@@ -77,9 +83,9 @@ type QueueListProps = {
 function QueueList({ queues, isLoaderShown }: QueueListProps) {
   if (queues.length > 0) {
     return (
-      <ul className="dividers mt-1">
+      <ul className="list mt-4">
         {queues.map(queue => (
-          <li key={queue.id}>
+          <li className="px-3.5 py-3" key={queue.id}>
             <QueueListing queue={queue} />
           </li>
         ))}
@@ -92,9 +98,5 @@ function QueueList({ queues, isLoaderShown }: QueueListProps) {
     return null;
   }
 
-  return (
-    <p className="text-gray-500 font-semibold text-center uppercase">
-      No virtual queues found
-    </p>
-  );
+  return <p className="empty-state">No virtual queues found</p>;
 }

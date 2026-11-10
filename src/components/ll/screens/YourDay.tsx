@@ -1,5 +1,6 @@
 import { use } from 'react';
 
+import { Booking } from '@/api/itinerary';
 import { Day } from '@/components/Day';
 import Screen from '@/components/Screen';
 import PlansContext from '@/contexts/PlansContext';
@@ -13,6 +14,34 @@ type YourDayProps = {
   date: string;
   unmodifiable?: boolean;
 };
+
+type DayPlansProps = {
+  plans: Booking[];
+  unmodifiable?: boolean;
+};
+
+function DayPlans({ plans, unmodifiable }: DayPlansProps) {
+  if (plans.length === 0) {
+    return <NoPlans />;
+  }
+
+  return (
+    <ul className="list">
+      {plans.map(plan => (
+        <li key={plan.id}>
+          <BookingListing
+            details
+            booking={plan}
+            button={
+              !unmodifiable && <ModifyButton booking={plan} type="small" />
+            }
+            unmodifiable={unmodifiable}
+          />
+        </li>
+      ))}
+    </ul>
+  );
+}
 
 // Lists the guest's plans for one park day.
 export default function YourDay({ date, unmodifiable }: YourDayProps) {
@@ -28,24 +57,9 @@ export default function YourDay({ date, unmodifiable }: YourDayProps) {
       subhead={<Day>{date}</Day>}
       theme={firstPlan?.park.theme}
     >
-      {listedPlans.length > 0 ? (
-        <ul className="dividers">
-          {listedPlans.map(plan => (
-            <li key={plan.id}>
-              <BookingListing
-                details
-                booking={plan}
-                button={
-                  !unmodifiable && <ModifyButton booking={plan} type="small" />
-                }
-                unmodifiable={unmodifiable}
-              />
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <NoPlans />
-      )}
+      <div className="mt-4">
+        <DayPlans plans={listedPlans} unmodifiable={unmodifiable} />
+      </div>
     </Screen>
   );
 }

@@ -24,15 +24,14 @@ type ModeProps = {
 function Mode({ selected, onChange, children }: ModeProps) {
   return (
     <li>
-      <label className="flex items-center mt-2">
+      <label className="row">
         <input
           type="radio"
           name="auto"
           onChange={onChange}
           checked={selected}
-          className="mr-2"
         />{' '}
-        {children}
+        <span className="row-title">{children}</span>
       </label>
     </li>
   );
@@ -51,7 +50,7 @@ function PartyGuests({ guests, partyIds, onPartyIdsChange }: PartyGuestsProps) {
   }
 
   if (guests.length === 0) {
-    return <p className="text-red-d">No guests to select</p>;
+    return <p className="empty-state">No guests to select</p>;
   }
 
   const partyGuests = guests.filter(guest => partyIds.has(guest.id));
@@ -127,12 +126,12 @@ export default function PartySelector() {
 
   return (
     <Screen title="Party Selection">
-      <p>
+      <p className="note mt-4 px-1">
         By default, all eligible guests (up to a maximum of 12) are
         automatically selected when you book a Lightning Lane. If you would like
         to limit who you book for, you can manually select your party here.
       </p>
-      <ul>
+      <ul className="list">
         <Mode selected={isAuto} onChange={bookForAllGuests}>
           Book for all eligible guests
         </Mode>

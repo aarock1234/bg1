@@ -6,9 +6,6 @@ import LabeledItem from './LabeledItem';
 // Average waits are shown rounded to the nearest multiple of this.
 const AVERAGE_WAIT_STEP_MINUTES = 5;
 
-const STATUS_CLASS =
-  'inline-block border-2 rounded-sm px-1.5 py-0.5 font-semibold';
-
 function roundToAverageWaitStep(minutes: number): number {
   return (
     Math.round(minutes / AVERAGE_WAIT_STEP_MINUTES) * AVERAGE_WAIT_STEP_MINUTES
@@ -51,7 +48,7 @@ function Minutes({ children, rounded }: MinutesProps) {
 
   return (
     <time dateTime={`PT${minutes}M`}>
-      {minutes} <span className="text-sm">min</span>
+      {minutes} <span className="text-[13px] font-normal text-muted">min</span>
     </time>
   );
 }
@@ -78,11 +75,7 @@ function AverageWaitValue({ time, virtualQueue }: AverageWaitProps) {
     return <abbr title="Virtual queue">VQ</abbr>;
   }
 
-  return (
-    <abbr title="Not applicable" className="px-1">
-      –
-    </abbr>
-  );
+  return <abbr title="Not applicable">–</abbr>;
 }
 
 type WaitTimeProps = Pick<Experience, 'standby'>;
@@ -148,13 +141,7 @@ type AvailableProps = {
 };
 
 export function Available({ time }: AvailableProps) {
-  return (
-    <span
-      className={`${STATUS_CLASS} border-gray-500 text-gray-500 bg-gray-50`}
-    >
-      {time}
-    </span>
-  );
+  return <span className="font-medium tabular-nums">{time}</span>;
 }
 
 type UnavailableProps = {
@@ -162,9 +149,5 @@ type UnavailableProps = {
 };
 
 export function Unavailable({ text }: UnavailableProps) {
-  return (
-    <span className={`${STATUS_CLASS} border-red-d text-red-d bg-red-100`}>
-      {text}
-    </span>
-  );
+  return <span className="badge badge-danger">{text}</span>;
 }

@@ -1,13 +1,11 @@
 import Icon, { IconProps } from './Icon';
 
-/**
- * Refresh icon from [IcoMoon]{@link https://icomoon.io/#icons-icomoon}
- * @license CC-BY-4.0
- */
+// Path data from Lucide (https://lucide.dev), ISC license.
 export default function RefreshIcon(props: IconProps) {
   return (
     <Icon {...props}>
-      <path d="M16 6h-6l2.243-2.243c-1.133-1.133-2.64-1.757-4.243-1.757s-3.109 0.624-4.243 1.757c-1.133 1.133-1.757 2.64-1.757 4.243s0.624 3.109 1.757 4.243c1.133 1.133 2.64 1.757 4.243 1.757s3.109-0.624 4.243-1.757c0.095-0.095 0.185-0.192 0.273-0.292l1.505 1.317c-1.466 1.674-3.62 2.732-6.020 2.732-4.418 0-8-3.582-8-8s3.582-8 8-8c2.209 0 4.209 0.896 5.656 2.344l2.343-2.344v6z" />
+      <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" />
+      <path d="M21 3v5h-5" />
     </Icon>
   );
 }

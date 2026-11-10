@@ -20,11 +20,11 @@ export default function LandLine({ land }: LandLineProps) {
   const hasLandName = landName !== '' && landName !== MISCELLANEOUS_LAND_NAME;
 
   return (
-    <div>
+    <div className="mt-0.5 text-[15px] text-muted">
       {hasLandName && (
         <>
           {landName}{' '}
-          <span className="mx-0.5" aria-label="in">
+          <span className="mx-0.5 text-[0.6em] align-middle" aria-label="in">
             ⦁
           </span>{' '}
         </>

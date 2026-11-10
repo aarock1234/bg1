@@ -1,4 +1,5 @@
 import { Queue } from '@/api/vq';
+import LandLine from '@/components/LandLine';
 import Screen from '@/components/Screen';
 
 type QueueScreenProps = {
@@ -7,6 +8,8 @@ type QueueScreenProps = {
   children: React.ReactNode;
 };
 
+// A screen about one queue: it opens with the queue's name and, when known,
+// the park it is in.
 export default function QueueScreen({
   queue,
   title,
@@ -14,7 +17,8 @@ export default function QueueScreen({
 }: QueueScreenProps) {
   return (
     <Screen title={title} theme={queue.park?.theme}>
-      <h2>{queue.name}</h2>
+      <h2 className="mt-5">{queue.name}</h2>
+      {queue.park && <LandLine land={queue.park} />}
       {children}
     </Screen>
   );

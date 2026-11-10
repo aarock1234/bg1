@@ -10,7 +10,6 @@ import { Time } from '@/components/Time';
 import DasPartiesContext from '@/contexts/DasPartiesContext';
 import ExperiencesContext from '@/contexts/ExperiencesContext';
 import NavContext from '@/contexts/NavContext';
-import ThemeContext from '@/contexts/ThemeContext';
 import { ParkTime } from '@/datetime';
 
 import DasPartyList from '../DasPartyList';
@@ -127,13 +126,17 @@ export default function TimesGuide({ ref }: HomeTabProps) {
               DAS
             </Button>
           )}
-          <ParkSelect />
           <RefreshButton name="Times" onClick={() => refreshExperiences()} />
         </>
       }
+      subhead={
+        <div className="flex">
+          <ParkSelect className="min-w-0 flex-1 shrink" />
+        </div>
+      }
       ref={ref}
     >
-      <Experiences experiences={experiences} />
+      <Experiences experiences={experiences} isLoading={!!loaderElem} />
       {loaderElem}
     </Tab>
   );
@@ -141,12 +144,18 @@ export default function TimesGuide({ ref }: HomeTabProps) {
 
 type ExperiencesProps = {
   experiences: Experience[];
+  isLoading: boolean;
 };
 
 const Experiences = memo(function Experiences({
   experiences,
+  isLoading,
 }: ExperiencesProps) {
   const experiencesByLand = groupByLand(experiences);
+
+  if (experiences.length === 0) {
+    return isLoading ? null : <NoTimes />;
+  }
 
   return (
     <>
@@ -158,10 +167,20 @@ const Experiences = memo(function Experiences({
         />
       ))}
 
-      {experiences.length > 0 && <SymbolsLegend />}
+      <SymbolsLegend />
     </>
   );
 });
+
+// Shown once loading has finished without any times to list, which would
+// otherwise leave the screen blank.
+function NoTimes() {
+  return (
+    <p className="empty-state">
+      No times to show right now. Check the park, or tap refresh to try again.
+    </p>
+  );
+}
 
 type LandTimesProps = {
   land: Land;
@@ -170,23 +189,17 @@ type LandTimesProps = {
 
 function LandTimes({ land, experiencesByType }: LandTimesProps) {
   return (
-    <div>
-      <h2
-        className={`pr-1 ${land.theme.text} text-sm font-semibold text-right uppercase`}
-      >
-        {land.name}
-      </h2>
-      <div className="rounded-sm overflow-hidden">
-        {EXPERIENCE_SECTIONS.map(({ type, title }) => (
-          <ExperienceList
-            title={title}
-            land={land}
-            experiences={experiencesByType[type]}
-            key={type}
-          />
-        ))}
-      </div>
-    </div>
+    <section>
+      <h2 className="mt-7 px-1 text-[17px]">{land.name}</h2>
+      {EXPERIENCE_SECTIONS.map(({ type, title }) => (
+        <ExperienceList
+          title={title}
+          land={land}
+          experiences={experiencesByType[type]}
+          key={type}
+        />
+      ))}
+    </section>
   );
 }
 
@@ -202,18 +215,14 @@ function ExperienceList({ title, land, experiences }: ExperienceListProps) {
   }
 
   return (
-    <div className={land.theme.bg} data-testid={`${land.name}-${title}`}>
-      <h3 className="mt-0 py-1 text-white text-xs font-semibold text-center uppercase">
+    <div className="list mt-2.5" data-testid={`${land.name}-${title}`}>
+      <h3 className="mt-0 px-3.5 py-2 text-[13px] font-medium tracking-normal text-muted">
         {title}
       </h3>
       <table className="w-full leading-snug">
         <tbody>
           {experiences.map(experience => (
-            <ExperienceRow
-              experience={experience}
-              land={land}
-              key={experience.id}
-            />
+            <ExperienceRow experience={experience} key={experience.id} />
           ))}
         </tbody>
       </table>
@@ -223,26 +232,24 @@ function ExperienceList({ title, land, experiences }: ExperienceListProps) {
 
 type ExperienceRowProps = {
   experience: Experience;
-  land: Land;
 };
 
-function ExperienceRow({ experience, land }: ExperienceRowProps) {
-  const timeWidth = experience.showTimes
-    ? 'min-w-[5.625rem]'
-    : 'min-w-[2.75rem]';
-  const nameStyle = experience.highlight ? `font-bold ${land.theme.text}` : '';
-
+// A row of the guide: the posted time, then the experience's name. Popular
+// attractions stand out by weight.
+function ExperienceRow({ experience }: ExperienceRowProps) {
   return (
-    <tr className="group">
-      <td
-        className={`${timeWidth} px-2 py-0.5 group-first:pt-1 group-last:pb-1 bg-white/80 font-bold text-center uppercase whitespace-nowrap`}
-      >
+    <tr className="border-t border-line">
+      <td className="w-22 py-3 pl-3.5 align-top font-semibold whitespace-nowrap tabular-nums">
         <PostedTime experience={experience} />
       </td>
-      <td className="w-full px-1 pl-2 py-0.5 group-first:pt-1 group-last:pb-1 bg-white/90">
-        <div className="flex items-center gap-x-2">
-          <div className={`flex-1 ${nameStyle}`}>{experience.name}</div>
-          <IndividualLL experience={experience} land={land} />
+      <td className="py-3 pr-3.5 pl-2 align-top">
+        <div className="flex items-start gap-x-3">
+          <div
+            className={`flex-1 ${experience.highlight ? 'font-semibold' : ''}`}
+          >
+            {experience.name}
+          </div>
+          <IndividualLL experience={experience} />
         </div>
       </td>
     </tr>
@@ -272,7 +279,7 @@ function PostedTime({ experience }: PostedTimeProps) {
   }
 
   if (standby.available) {
-    return standby.waitTime ?? '–';
+    return <WaitTime minutes={standby.waitTime} />;
   }
 
   if (isVirtualQueueOnly) {
@@ -280,6 +287,24 @@ function PostedTime({ experience }: PostedTimeProps) {
   }
 
   return '❌';
+}
+
+type WaitTimeProps = {
+  minutes: number | undefined;
+};
+
+// The unit is added by the stylesheet, which keeps the cell's text a plain
+// number.
+function WaitTime({ minutes }: WaitTimeProps) {
+  if (minutes === undefined) {
+    return '–';
+  }
+
+  return (
+    <span className="after:ml-1 after:text-[13px] after:font-normal after:text-muted after:content-['min']">
+      {minutes}
+    </span>
+  );
 }
 
 type NextShowTimeProps = {
@@ -300,7 +325,7 @@ function NextShowTime(props: NextShowTimeProps) {
   return (
     <button
       onClick={() => goTo(<ExperienceInfo experience={experience} />)}
-      className="underline"
+      className="font-semibold underline decoration-muted active:opacity-60"
     >
       <Time time={time} />
     </button>
@@ -308,7 +333,7 @@ function NextShowTime(props: NextShowTimeProps) {
 }
 
 // Shows the price and next return time of an individual Lightning Lane.
-function IndividualLL({ experience, land }: ExperienceRowProps) {
+function IndividualLL({ experience }: ExperienceRowProps) {
   const { individual } = experience;
 
   if (!individual) {
@@ -316,9 +341,7 @@ function IndividualLL({ experience, land }: ExperienceRowProps) {
   }
 
   return (
-    <div
-      className={`${land.theme.text} text-xs leading-tight font-semibold text-center uppercase`}
-    >
+    <div className="text-right text-[13px] leading-tight font-medium text-muted">
       <div>
         <abbr title="Lightning Lane">LL</abbr>
         {`: ${individual.displayPrice}`}
@@ -333,8 +356,6 @@ function IndividualLL({ experience, land }: ExperienceRowProps) {
 }
 
 function SymbolsLegend() {
-  const theme = use(ThemeContext);
-
   return (
     <>
       <Legend title="Symbols">
@@ -342,9 +363,9 @@ function SymbolsLegend() {
         <Symbol sym="❌" def="Temporarily down" />
         <Symbol sym="VQ" def="Virtual queue" />
       </Legend>
-      <p className="text-sm text-center">
-        <span className={`${theme.text} font-bold`}>Popular attractions</span>{' '}
-        are shown in bold
+      <p className="note text-center">
+        <span className="font-semibold text-ink">Popular attractions</span> are
+        shown in bold
       </p>
     </>
   );
@@ -361,10 +382,10 @@ function ExperienceInfo({ experience }: ExperienceInfoProps) {
     <Screen title="Experience Info">
       <h2>{experience.name}</h2>
       <LandLine land={experience.land} />
-      <h3>Upcoming {showKind}</h3>
-      <ul className="list-disc mt-2 pl-6">
+      <h3 className="section-title">Upcoming {showKind}</h3>
+      <ul className="list">
         {experience.showTimes?.map(time => (
-          <li key={+time}>
+          <li className="row font-medium" key={+time}>
             <Time time={time} />
           </li>
         ))}

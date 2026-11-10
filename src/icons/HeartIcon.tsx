@@ -1,13 +1,10 @@
 import Icon, { IconProps } from './Icon';
 
-/**
- * Heart icon from [IcoMoon]{@link https://icomoon.io/#icons-icomoon}
- * @license CC-BY-4.0
- */
+// Path data from Lucide (https://lucide.dev), ISC license.
 export default function HeartIcon(props: IconProps) {
   return (
     <Icon {...props}>
-      <path d="M11.8 1c-1.682 0-3.129 1.368-3.799 2.797-0.671-1.429-2.118-2.797-3.8-2.797-2.318 0-4.2 1.882-4.2 4.2 0 4.716 4.758 5.953 8 10.616 3.065-4.634 8-6.050 8-10.616 0-2.319-1.882-4.2-4.2-4.2z" />
+      <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" />
     </Icon>
   );
 }

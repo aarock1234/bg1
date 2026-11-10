@@ -1,5 +1,6 @@
 import { use, useCallback, useEffect, useMemo, useState } from 'react';
 
+import { AuthData, ReauthNeeded, authStore } from '@/api/auth';
 import { isLLMP } from '@/api/itinerary';
 import {
   Guest,
@@ -25,10 +26,9 @@ import PlansContext from '@/contexts/PlansContext';
 import RebookingContext from '@/contexts/RebookingContext';
 import ResortContext from '@/contexts/ResortContext';
 import { parkDate } from '@/datetime';
-import useAutoBook, { AutoBookStatus } from '@/hooks/useAutoBook';
 import useDataLoader from '@/hooks/useDataLoader';
 import useScreenState from '@/hooks/useScreenState';
-import useWakeLock from '@/hooks/useWakeLock';
+import useServerJob, { ServerJobState } from '@/hooks/useServerJob';
 import { ping } from '@/ping';
 
 import BookingDate from '../BookingDate';
@@ -54,18 +54,22 @@ type BookingPanelProps = {
   party: Party;
   offer: OfferState;
   isModifying: boolean;
-  autoBook: AutoBookPanel;
+
+  // Left out while modifying a reservation, which the server can't do.
+  autoBook?: AutoBookPanel;
+
   onRefreshParty: () => void;
   onOfferChange: (offer: Offer) => void;
   onBook: () => void;
 };
 
 type AutoBookPanel = {
-  status: AutoBookStatus;
+  state: ServerJobState;
   parkHours?: ParkHours;
   isForToday: boolean;
   onStart: (range: ReturnTimeRange) => void;
   onStop: () => void;
+  onDismiss: () => void;
 };
 
 function hasReachedExperienceLimit(guests: Guests): boolean {
@@ -84,7 +88,12 @@ function BookingPanel(props: BookingPanelProps) {
   const { party, offer, isModifying, autoBook } = props;
   const hasEligibleGuests = party.eligible.length > 0;
   const hasGuests = hasEligibleGuests || party.ineligible.length > 0;
-  const isAutoBooking = autoBook.status.kind === 'searching';
+
+  // The server's search requests offers of its own, which makes the one on
+  // screen stale, so it can't be booked by hand until the search stops.
+  const isSearching =
+    autoBook?.state.kind === 'tracking' &&
+    autoBook.state.job.status === 'searching';
 
   if (!hasGuests) {
     return <NoGuestsFound onRefresh={props.onRefreshParty} />;
@@ -102,7 +111,7 @@ function BookingPanel(props: BookingPanelProps) {
     return (
       <>
         <NoReservationsAvailable />
-        <AutoBook {...autoBook} />
+        {autoBook && <AutoBook {...autoBook} />}
       </>
     );
   }
@@ -110,8 +119,8 @@ function BookingPanel(props: BookingPanelProps) {
   return (
     <>
       <OfferDetails offer={offer} onOfferChange={props.onOfferChange} />
-      <AutoBook {...autoBook} />
-      {!isAutoBooking && (
+      {autoBook && <AutoBook {...autoBook} />}
+      {!isSearching && (
         <FloatingButton onClick={props.onBook}>
           {isModifying ? 'Modify Lightning Lane' : 'Book Lightning Lane'}
         </FloatingButton>
@@ -157,20 +166,11 @@ export default function BookExperience({ experience }: BookExperienceProps) {
     ping(resort, 'G');
   }
 
-  const autoBook = useAutoBook({
-    onBooked: finishBooking,
+  // A search the server ran may have booked while this screen was closed, so
+  // the plans are loaded again whenever one is found booked.
+  const serverJob = useServerJob(experience.id, {
+    onBooked: () => refreshPlans(),
   });
-  const { stop: stopAutoBook } = autoBook;
-  const isAutoBooking = autoBook.status.kind === 'searching';
-
-  useWakeLock(isAutoBooking);
-
-  // Auto booking only runs while the guest is looking at this screen.
-  useEffect(() => {
-    if (!isActiveScreen) {
-      stopAutoBook();
-    }
-  }, [isActiveScreen, stopAutoBook]);
 
   // Another screen may have replaced the offer while this one was in the
   // background, in which case a fresh one is needed.
@@ -353,25 +353,45 @@ export default function BookExperience({ experience }: BookExperienceProps) {
     }
   }
 
+  // Hands the search to BG1's server along with the guest's Disney login,
+  // which the server needs to book on their behalf.
   function startAutoBook(range: ReturnTimeRange): void {
     if (selected.length === 0) {
       return;
     }
 
-    autoBook.start({
-      ll,
-      experience,
+    let login: AuthData;
+
+    try {
+      login = authStore.getLogin();
+    } catch (error) {
+      // The app asks the guest to sign in again when the login is gone.
+      if (error instanceof ReauthNeeded) {
+        return;
+      }
+
+      throw error;
+    }
+
+    serverJob.start({
+      resortId: resort.id,
+      login,
+      experienceId: experience.id,
       guests: selected,
-      range,
-      offerOptions,
+      date: offerDate,
+      earliest: range.earliest.toString(),
+      latest: range.latest.toString(),
     });
   }
 
-  // Auto booking requests offers of its own, so the one on screen is stale.
-  function stopAutoBookAndRefresh(): void {
-    stopAutoBook();
-    setOffer(undefined);
-  }
+  const autoBookPanel: AutoBookPanel = {
+    state: serverJob.state,
+    parkHours,
+    isForToday: offerDate === parkDate(),
+    onStart: startAutoBook,
+    onStop: serverJob.stop,
+    onDismiss: serverJob.dismiss,
+  };
 
   // With nobody eligible there is no offer to refresh, only the party.
   const hasNoEligibleGuests = guests?.eligible.length === 0;
@@ -404,7 +424,7 @@ export default function BookExperience({ experience }: BookExperienceProps) {
         </>
       }
     >
-      <h2>{experience.name}</h2>
+      <h2 className="mt-5">{experience.name}</h2>
       <LandLine land={experience.land} />
       {party && (
         <PartyContext value={party}>
@@ -412,13 +432,7 @@ export default function BookExperience({ experience }: BookExperienceProps) {
             party={party}
             offer={offer}
             isModifying={!!existingBooking}
-            autoBook={{
-              status: autoBook.status,
-              parkHours,
-              isForToday: offerDate === parkDate(),
-              onStart: startAutoBook,
-              onStop: stopAutoBookAndRefresh,
-            }}
+            autoBook={existingBooking ? undefined : autoBookPanel}
             onRefreshParty={loadParty}
             onOfferChange={setOffer}
             onBook={book}

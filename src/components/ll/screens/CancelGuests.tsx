@@ -10,7 +10,7 @@ import NavContext from '@/contexts/NavContext';
 import PlansContext from '@/contexts/PlansContext';
 import useDataLoader from '@/hooks/useDataLoader';
 
-import ReturnTime from '../ReturnTime';
+import { ReturnTimeCard } from '../ReturnTime';
 
 type CancellableBooking = LightningLane | DasBooking;
 
@@ -26,6 +26,22 @@ type CancelGuestsProps<B extends CancellableBooking> = {
   // cancelling this guest cancels everyone.
   dasGuest?: B['guests'][number];
 };
+
+type SelectAllProps = {
+  checked: boolean;
+  onChange: () => void;
+};
+
+function SelectAll({ checked, onChange }: SelectAllProps) {
+  return (
+    <div className="list mt-4">
+      <label className="row">
+        <input type="checkbox" checked={checked} onChange={onChange} />
+        <span className="row-title">Select All</span>
+      </label>
+    </div>
+  );
+}
 
 export default function CancelGuests<B extends CancellableBooking>({
   booking,
@@ -85,21 +101,12 @@ export default function CancelGuests<B extends CancellableBooking>({
 
   return (
     <Screen title="Cancel Guests" theme={park.theme}>
-      <h2>{name}</h2>
+      <h2 className="mt-5">{name}</h2>
       <LandLine land={booking.land} />
-      <ReturnTime start={booking.start} end={booking.end} />
-      <div className="ml-3">
-        <label className="flex items-center py-4">
-          <input
-            type="checkbox"
-            checked={isCancelingAll}
-            onChange={toggleAllGuests}
-          />
-          <span className="ml-3">Select All</span>
-        </label>
-      </div>
+      <ReturnTimeCard start={booking.start} end={booking.end} />
+      <SelectAll checked={isCancelingAll} onChange={toggleAllGuests} />
       {!isCancelingNone && (
-        <div className="mb-4">
+        <>
           <h3>Cancel These Guests</h3>
           <GuestList
             guests={guests.filter(guest => guestsToCancel.has(guest))}
@@ -108,10 +115,10 @@ export default function CancelGuests<B extends CancellableBooking>({
               onToggle: keepGuest,
             }}
           />
-        </div>
+        </>
       )}
       {!isCancelingAll && (
-        <div>
+        <>
           <h3>Select Guests to Cancel</h3>
           <GuestList
             guests={guests.filter(guest => !guestsToCancel.has(guest))}
@@ -120,9 +127,13 @@ export default function CancelGuests<B extends CancellableBooking>({
               onToggle: cancelGuest,
             }}
           />
-        </div>
+        </>
       )}
-      <FloatingButton disabled={isCancelingNone} onClick={cancelBooking}>
+      <FloatingButton
+        variant="danger"
+        disabled={isCancelingNone}
+        onClick={cancelBooking}
+      >
         {`Cancel ${isCancelingAll ? 'Reservation' : 'Guests'}`}
       </FloatingButton>
 

@@ -17,7 +17,7 @@ import { ping } from '@/ping';
 import BookingDate from '../BookingDate';
 import OverlappingPlans from '../OverlappingPlans';
 import RebookingHeader from '../RebookingHeader';
-import ReturnTime from '../ReturnTime';
+import { ReturnTimeCard } from '../ReturnTime';
 import YourDayButton from '../YourDayButton';
 import BookingDetails from './BookingDetails';
 import Home from './Home';
@@ -79,9 +79,9 @@ export default function BookNewReturnTime({
       theme={experience.park.theme}
       buttons={<YourDayButton />}
     >
-      <h2>{experience.name}</h2>
+      <h2 className="mt-5">{experience.name}</h2>
       <LandLine land={experience.land} />
-      <ReturnTime
+      <ReturnTimeCard
         {...offer}
         button={
           <Button type="small" onClick={selectReturnTime}>

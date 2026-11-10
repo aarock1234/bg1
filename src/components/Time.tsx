@@ -33,7 +33,7 @@ export function Time({ time, ...attrs }: TimeProps) {
   return (
     <time {...attrs} dateTime={dateTimeAttribute(timeString)}>
       <span className="whitespace-nowrap">
-        {hourAndMinutes} <span className="text-xs">{period}</span>
+        {hourAndMinutes} <span className="text-[0.8em]">{period}</span>
       </span>
     </time>
   );

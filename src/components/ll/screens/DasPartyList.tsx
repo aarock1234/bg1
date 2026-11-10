@@ -12,6 +12,8 @@ import PlansContext from '@/contexts/PlansContext';
 import BookingDetails from './BookingDetails';
 import DasSelection from './DasSelection';
 
+const AVATAR_SIZE_PX = 36;
+
 type DasPartyListProps = {
   parties: DasParty[];
 };
@@ -45,20 +47,22 @@ type PartyRowProps = {
   children: React.ReactNode;
 };
 
+// A row for one DAS party, which goes by its primary guest: their picture (or
+// their initial when they don't have one), then the row's content.
 function PartyRow({ primaryGuest, children }: PartyRowProps) {
   return (
-    <li className="flex items-center gap-x-3 pl-3 py-1">
+    <li className="row">
       <span
-        className="shrink-0 w-12 h-12 leading-12 rounded-full text-3xl font-bold text-center bg-gray-400 text-white"
+        className="grid size-9 shrink-0 place-items-center overflow-hidden rounded-full border border-line bg-pressed text-sm font-semibold text-ink"
         aria-hidden="true"
       >
         {primaryGuest.avatarImageUrl ? (
           <img
             src={primaryGuest.avatarImageUrl}
             alt=""
-            width="48"
-            height="48"
-            className="rounded-full"
+            width={AVATAR_SIZE_PX}
+            height={AVATAR_SIZE_PX}
+            className="size-full object-cover"
           />
         ) : (
           primaryGuest.name[0]
@@ -84,13 +88,13 @@ function UnbookedParties({ parties }: UnbookedPartiesProps) {
   return (
     <>
       <h3>Select Next Experience</h3>
-      <ul className="mt-2">
+      <ul className="list mt-3">
         {parties.map(party => (
           <PartyRow
             primaryGuest={party.primaryGuest}
             key={party.primaryGuest.id}
           >
-            <span className="flex-1 leading-tight">
+            <span className="row-title leading-tight">
               {party.primaryGuest.name}
             </span>
             <Button
@@ -120,15 +124,15 @@ function BookedParties({ bookedParties }: BookedPartiesProps) {
   return (
     <>
       <h3>Current Selection</h3>
-      <ul className="mt-2">
+      <ul className="list mt-3">
         {bookedParties.map(({ party, selection }) => (
           <PartyRow
             primaryGuest={party.primaryGuest}
             key={party.primaryGuest.id}
           >
-            <div className="flex-1">
+            <div className="row-title leading-tight">
               <div>{party.primaryGuest.name}</div>
-              <div className="text-gray-500 text-xs font-semibold uppercase">
+              <div className="mt-1 text-[13px] font-normal text-muted">
                 {selection.name} @ <Time time={selection.start.time} />
               </div>
             </div>

@@ -2,7 +2,7 @@ import { memo, use, useEffect, useRef, useState } from 'react';
 
 import { Booking, isLLMP } from '@/api/itinerary';
 import { Experience, FlexExperience } from '@/api/ll';
-import { Park, Theme } from '@/api/resort';
+import { Park } from '@/api/resort';
 import Screen from '@/components/Screen';
 import Tab from '@/components/Tab';
 import { Time } from '@/components/Time';
@@ -13,7 +13,6 @@ import NavContext from '@/contexts/NavContext';
 import ParkContext from '@/contexts/ParkContext';
 import PlansContext from '@/contexts/PlansContext';
 import ResortContext from '@/contexts/ResortContext';
-import ThemeContext from '@/contexts/ThemeContext';
 import { DateTime, ParkTime, parkDate, upcomingTimes } from '@/datetime';
 import useSavedParty from '@/hooks/useSavedParty';
 import CheckmarkIcon from '@/icons/CheckmarkIcon';
@@ -172,9 +171,7 @@ export default function MultiPassList({ ref }: HomeTabProps) {
       title={<abbr title="Lightning Lane">LL</abbr>}
       buttons={
         <>
-          {ll.rules.prebook && <BookingDateSelect />}
           <SortSelect />
-          <ParkSelect />
           <RefreshButton
             name="Experiences"
             onClick={() => refreshExperiences()}
@@ -184,6 +181,10 @@ export default function MultiPassList({ ref }: HomeTabProps) {
       subhead={
         <>
           <RebookingHeader />
+          <div className="flex gap-2">
+            <ParkSelect className="min-w-0 flex-1 shrink" />
+            {ll.rules.prebook && <BookingDateSelect />}
+          </div>
           {isBookingToday && (
             <TimeBanner bookTime={ll.nextBookTime} dropTime={dropTime} />
           )}
@@ -191,7 +192,12 @@ export default function MultiPassList({ ref }: HomeTabProps) {
       }
       ref={ref}
     >
-      <Experiences experiences={experiences} park={park} sorter={sorter} />
+      <Experiences
+        experiences={experiences}
+        park={park}
+        sorter={sorter}
+        isLoading={!!loaderElem}
+      />
       {loaderElem}
     </Tab>
   );
@@ -201,11 +207,11 @@ type ExperiencesProps = {
   experiences: Experience[];
   park: Park;
   sorter: Sorter;
+  isLoading: boolean;
 };
 
 const Experiences = memo(function Experiences(props: ExperiencesProps) {
-  const { experiences, park, sorter } = props;
-  const theme = use(ThemeContext);
+  const { experiences, park, sorter, isLoading } = props;
   const { plans } = use(PlansContext);
   const { bookingDate } = use(BookingDateContext);
   const [starred, setStarred] = useState(loadStarredIds);
@@ -257,6 +263,10 @@ const Experiences = memo(function Experiences(props: ExperiencesProps) {
     .filter(isExperienced)
     .sort((a, b) => a.name.localeCompare(b.name));
 
+  if (flexExperiences.length === 0) {
+    return isLoading ? null : <NoExperiences />;
+  }
+
   return (
     <>
       <ExperienceList
@@ -269,11 +279,7 @@ const Experiences = memo(function Experiences(props: ExperiencesProps) {
 
       {experienced.length > 0 && (
         <>
-          <h2
-            className={`-mx-3 px-3 py-1 text-sm uppercase text-center ${theme.bg} text-white`}
-          >
-            Experienced or Expired
-          </h2>
+          <h2 className="section-title">Experienced or Expired</h2>
           <ExperienceList
             experiences={experienced}
             park={park}
@@ -284,15 +290,22 @@ const Experiences = memo(function Experiences(props: ExperiencesProps) {
         </>
       )}
 
-      {flexExperiences.length > 0 && (
-        <>
-          <SymbolsLegend park={park} />
-          {!isBookingToday && <AverageStandbyNote park={park} />}
-        </>
-      )}
+      <SymbolsLegend park={park} />
+      {!isBookingToday && <AverageStandbyNote park={park} />}
     </>
   );
 });
+
+// Shown once loading has finished without any Lightning Lanes to list, which
+// would otherwise leave the screen blank.
+function NoExperiences() {
+  return (
+    <p className="empty-state">
+      No Lightning Lanes to show right now. Check the park and date, or tap
+      refresh to try again.
+    </p>
+  );
+}
 
 type ExperienceListProps = {
   experiences: ExtFlexExp[];
@@ -306,7 +319,7 @@ function ExperienceList(props: ExperienceListProps) {
   const { experiences, park, type, isBookingToday, onStarToggle } = props;
 
   return (
-    <ul className="dividers" data-testid={type}>
+    <ul className="list mt-4 empty:hidden" data-testid={type}>
       {experiences.map(experience => (
         <ExperienceItem
           experience={experience}
@@ -332,10 +345,9 @@ function ExperienceItem(props: ExperienceItemProps) {
   const { goTo } = use(NavContext);
 
   return (
-    <li>
-      <div className="flex items-center gap-x-2">
-        <StarButton experience={experience} onToggle={onStarToggle} />
-        <h3 className="flex-1 mt-0 text-lg font-semibold leading-tight truncate">
+    <li className="px-3.5 pt-1.5 pb-3">
+      <div className="-mr-2.5 flex items-center">
+        <h3 className="mt-0 min-w-0 flex-1 py-2 pr-2 font-medium">
           {experience.name}
         </h3>
         <AvailabilityInfoButton
@@ -350,8 +362,9 @@ function ExperienceItem(props: ExperienceItemProps) {
             onClick={() => goTo(<BookedDesc />)}
           />
         )}
+        <StarButton experience={experience} onToggle={onStarToggle} />
       </div>
-      <div className="flex flex-wrap gap-1.5 mt-2">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
         <StandbyTime experience={experience} average={!isBookingToday} />
         <LabeledItem label="LL">
           <LLButton experience={experience} />
@@ -413,7 +426,7 @@ function AvailabilityInfoButton(props: AvailabilityInfoButtonProps) {
       name="Future Drop"
       icon={DropIcon}
       onClick={showDropTimeDesc}
-      className="opacity-50"
+      className="text-faint"
     />
   );
 }
@@ -425,14 +438,15 @@ type InfoButtonProps = {
   className?: string;
 };
 
+// A marker next to an experience's name. Tapping it explains what it means.
 function InfoButton({ name, icon: Icon, onClick, className }: InfoButtonProps) {
   return (
     <button
       aria-label={`${name} (more info)`}
-      className={`-mx-2 px-2 ${className ?? ''}`}
+      className={`grid h-10 w-8 shrink-0 place-items-center active:opacity-60 ${className ?? ''}`}
       onClick={onClick}
     >
-      <Icon themed />
+      <Icon />
     </button>
   );
 }
@@ -442,16 +456,17 @@ type StarButtonProps = {
   onToggle: (experience: ExtFlexExp) => void;
 };
 
+// A favorite's star is filled in; the others are faint outlines.
 function StarButton({ experience, onToggle }: StarButtonProps) {
   const action = experience.starred ? 'Remove from' : 'Add to';
 
   return (
     <button
       title={`${action} Favorites`}
-      className="-m-2 p-2 text-gray-300"
+      className={`grid size-10 shrink-0 place-items-center active:opacity-60 ${experience.starred ? 'text-ink' : 'text-faint'}`}
       onClick={() => onToggle(experience)}
     >
-      <StarIcon themed={experience.starred} />
+      <StarIcon filled={experience.starred} />
     </button>
   );
 }
@@ -466,15 +481,16 @@ function SymbolsLegend({ park }: SymbolsLegendProps) {
   return (
     <Legend title="Symbols">
       <Symbol
-        sym={<LightningIcon themed />}
+        sym={<LightningIcon />}
         def={LIGHTNING_PICK}
         onInfo={() => goTo(<LightningPickDesc />)}
       />
       {park.dropTimes.length > 0 && (
         <Symbol
           sym={
-            <div className="flex gap-x-1">
-              <DropIcon themed /> / <DropIcon themed className="opacity-50" />
+            <div className="flex items-center gap-x-1 font-normal text-muted">
+              <DropIcon className="text-ink" /> /{' '}
+              <DropIcon className="text-faint" />
             </div>
           }
           def="Next/Future Drop"
@@ -482,7 +498,7 @@ function SymbolsLegend({ park }: SymbolsLegendProps) {
         />
       )}
       <Symbol
-        sym={<CheckmarkIcon themed />}
+        sym={<CheckmarkIcon />}
         def={BOOKED}
         onInfo={() => goTo(<BookedDesc />)}
       />
@@ -498,7 +514,7 @@ function AverageStandbyNote({ park }: AverageStandbyNoteProps) {
   const resort = use(ResortContext);
 
   return (
-    <p className="text-sm">
+    <p className="note mt-4 px-1">
       Standby times for future dates are monthly averages (source:{' '}
       <a
         href={thrillDataUrl(resort.id, park)}
@@ -592,47 +608,40 @@ function ParkDropTimes({ park, isBookingToday }: ParkDropTimesProps) {
   const nextDropTime = upcomingTimes(park.dropTimes)[0];
 
   return (
-    <div className={`mt-5 rounded-sm overflow-hidden ${park.theme.bg}`}>
-      <h2
-        className={`mt-0 py-1 ${park.theme.bg} text-white text-base text-center`}
-      >
-        {park.name}
-      </h2>
-      <div className="flex flex-col px-2 pb-3 bg-white/90">
+    <section>
+      <h2 className="section-title">{park.name}</h2>
+      <div className="list">
         {resort.dropExperiences(park).map(experience => (
           <ExperienceDropTimes
             experience={experience}
-            theme={park.theme}
             nextDropTime={nextDropTime}
             isBookingToday={isBookingToday}
             key={experience.id}
           />
         ))}
       </div>
-    </div>
+    </section>
   );
 }
 
 type ExperienceDropTimesProps = {
   experience: Pick<Experience, 'name' | 'dropTimes'>;
-  theme: Theme;
   nextDropTime?: ParkTime;
   isBookingToday: boolean;
 };
 
 function ExperienceDropTimes(props: ExperienceDropTimesProps) {
-  const { experience, theme, nextDropTime, isBookingToday } = props;
+  const { experience, nextDropTime, isBookingToday } = props;
   const dropTimes = experience.dropTimes ?? [];
   const upcoming = new Set(upcomingTimes(dropTimes));
 
   return (
-    <div>
-      <h3 className="mt-3">{experience.name}</h3>
-      <ul className="flex flex-wrap gap-y-2 mt-1 leading-tight">
+    <div className="px-3.5 py-3">
+      <h3 className="mt-0 text-[15px] font-medium">{experience.name}</h3>
+      <ul className="mt-2 flex flex-wrap gap-2">
         {dropTimes.map(time => (
           <DropTime
             time={time}
-            theme={theme}
             isNext={isBookingToday && time.equals(nextDropTime)}
             isPast={isBookingToday && !upcoming.has(time)}
             key={+time}
@@ -645,38 +654,30 @@ function ExperienceDropTimes(props: ExperienceDropTimesProps) {
 
 type DropTimeProps = {
   time: ParkTime;
-  theme: Theme;
   isNext: boolean;
   isPast: boolean;
 };
 
-function dropTimeStyle({ theme, isNext, isPast }: DropTimeProps): string {
+// The next drop is a solid badge, and drops already past are struck through.
+function dropTimeStyle({ isNext, isPast }: DropTimeProps): string {
   if (isNext) {
-    return `${theme.text} font-bold`;
+    return 'badge-solid';
   }
 
   if (isPast) {
-    return 'text-gray-500';
+    return 'badge-muted line-through';
   }
 
-  return 'font-semibold';
+  return '';
 }
 
 function DropTime(props: DropTimeProps) {
-  const { time, theme, isNext } = props;
+  const { time, isNext } = props;
 
   return (
-    <li className="min-w-[6em] text-center">
-      <div className={dropTimeStyle(props)}>
-        <Time time={time} />
-      </div>
-      {isNext && (
-        <div
-          className={`rounded-xs ${theme.bg} text-white/90 text-xs font-semibold text-center uppercase`}
-        >
-          next
-        </div>
-      )}
+    <li className={`badge h-7 px-2.5 text-[13px] ${dropTimeStyle(props)}`}>
+      <Time time={time} />
+      {isNext && <span className="font-semibold">next</span>}
     </li>
   );
 }

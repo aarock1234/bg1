@@ -10,7 +10,7 @@ import RebookingContext from '@/contexts/RebookingContext';
 import useDataLoader from '@/hooks/useDataLoader';
 
 import BookingDate from '../BookingDate';
-import ReturnTime from '../ReturnTime';
+import { ReturnTimeCard } from '../ReturnTime';
 import YourDayButton from '../YourDayButton';
 import BookNewReturnTime from './BookNewReturnTime';
 import RefreshButton from './RefreshButton';
@@ -40,9 +40,9 @@ function LoadingOffer({ booking, loaderElem }: LoadingOfferProps) {
         </>
       }
     >
-      <h2>{booking.name}</h2>
+      <h2 className="mt-5">{booking.name}</h2>
       <LandLine land={booking.land} />
-      <ReturnTime
+      <ReturnTimeCard
         start={booking.start}
         end={booking.end}
         button={<Button type="small">Keep</Button>}

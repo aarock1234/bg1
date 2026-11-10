@@ -1,13 +1,13 @@
 import Icon, { IconProps } from './Icon';
 
-/**
- * News icon from [IcoMoon]{@link https://icomoon.io/#icons-icomoon}
- * @license CC-BY-4.0
- */
+// Path data from Lucide (https://lucide.dev), ISC license.
 export default function NewsIcon(props: IconProps) {
   return (
     <Icon {...props}>
-      <path d="M14 4v-2h-14v11c0 0.552 0.448 1 1 1h13.5c0.828 0 1.5-0.672 1.5-1.5v-8.5h-2zM13 13h-12v-10h12v10zM2 5h10v1h-10zM8 7h4v1h-4zM8 9h4v1h-4zM8 11h3v1h-3zM2 7h5v5h-5z" />
+      <path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2" />
+      <path d="M18 14h-8" />
+      <path d="M15 18h-5" />
+      <path d="M10 6h8v4h-8V6Z" />
     </Icon>
   );
 }

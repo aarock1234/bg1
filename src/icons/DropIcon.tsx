@@ -1,13 +1,11 @@
 import Icon, { IconProps } from './Icon';
 
-/**
- * Arrow-down icon from [IcoMoon]{@link https://icomoon.io/#icons-icomoon}
- * @license CC-BY-4.0
- */
+// Path data from Lucide (https://lucide.dev), ISC license.
 export default function DropIcon(props: IconProps) {
   return (
     <Icon {...props}>
-      <path d="M8 15.5l7.5-7.5h-4.5v-8h-6v8h-4.5z" />
+      <path d="M12 5v14" />
+      <path d="m19 12-7 7-7-7" />
     </Icon>
   );
 }

@@ -17,6 +17,7 @@ import NavContext from '@/contexts/NavContext';
 import PlansContext from '@/contexts/PlansContext';
 import ResortContext from '@/contexts/ResortContext';
 import useDataLoader from '@/hooks/useDataLoader';
+import ChevronRightIcon from '@/icons/ChevronRightIcon';
 import { ping } from '@/ping';
 
 import BookingDetails from './BookingDetails';
@@ -43,16 +44,19 @@ type ExperienceChoiceProps = {
 function ExperienceChoice({ experience, onChoose }: ExperienceChoiceProps) {
   if (!experience) {
     return (
-      <div className="mt-3 text-center">
-        <Button onClick={onChoose}>Select Experience</Button>
+      <div className="list mt-3">
+        <button className="row" onClick={onChoose}>
+          <span className="row-title">Select Experience</span>
+          <ChevronRightIcon className="text-muted" />
+        </button>
       </div>
     );
   }
 
   return (
-    <div className="flex items-center mt-3">
-      <div className="text-lg font-semibold truncate">{experience.name}</div>
-      <div className="ml-3">
+    <div className="list mt-3">
+      <div className="row">
+        <div className="row-title leading-snug">{experience.name}</div>
         <Button type="small" onClick={onChoose}>
           Change
         </Button>

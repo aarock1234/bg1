@@ -2,7 +2,6 @@ import { use, useMemo } from 'react';
 
 import MenuButton, { MenuProps, Option } from '@/components/MenuButton';
 import BookingDateContext from '@/contexts/BookingDateContext';
-import ThemeContext from '@/contexts/ThemeContext';
 import { DateFormat, modifyDate, parkDate, toDate } from '@/datetime';
 import useUpdateParkFromPlans from '@/hooks/useUpdateParkFromPlans';
 import { NUM_BOOKING_DAYS } from '@/providers/BookingDateProvider';
@@ -103,16 +102,16 @@ function CalendarMenu<K extends string, V>(props: MenuProps<K, V>) {
   }
 
   return (
-    <div className="px-1 pb-1">
-      <h4 className="mt-3 text-lg text-center">
+    <div className="px-3 pb-3">
+      <h4 className="px-1 text-lg font-semibold">
         {monthRange(firstDate, lastDate)}
       </h4>
-      <table className="table-fixed border-separate border-spacing-0.5 w-full mt-2 font-semibold">
+      <table className="mt-3 w-full table-fixed border-separate border-spacing-1">
         <thead>
           <tr>
             {WEEKDAY_NAMES.map(weekday => (
               <th
-                className="text-xs font-semibold uppercase text-center text-gray-500"
+                className="pb-1 text-center text-xs font-medium text-muted"
                 key={weekday}
               >
                 {weekday}
@@ -167,27 +166,24 @@ type CalendarDayProps<V> = {
   isSelected: boolean;
 };
 
-// Days outside the booking window have no option and are left blank.
+// Days outside the booking window have no option and are left blank. The
+// selected day is filled in.
 function CalendarDay<V>({ date, option, isSelected }: CalendarDayProps<V>) {
-  const { bg } = use(ThemeContext);
-
   if (!option) {
     return <td />;
   }
 
   return (
     <td className="p-0">
-      <label className={`block p-2 ${bg} text-white`}>
-        <span className="flex items-center justify-center border-y-4 border-transparent has-checked:border-white py-0.5">
-          <input
-            type="radio"
-            name="bookingDate"
-            value={date}
-            defaultChecked={isSelected}
-            className="sr-only"
-          />
-          <time dateTime={date}>{option.text}</time>
-        </span>
+      <label className="grid h-11 place-items-center rounded-control border border-line bg-pressed font-medium transition-colors has-checked:border-ink has-checked:bg-ink has-checked:text-canvas has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-ink">
+        <input
+          type="radio"
+          name="bookingDate"
+          value={date}
+          defaultChecked={isSelected}
+          className="sr-only"
+        />
+        <time dateTime={date}>{option.text}</time>
       </label>
     </td>
   );

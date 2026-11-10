@@ -38,8 +38,10 @@ export default function ModifyParty({ party }: ModifyPartyProps) {
   return (
     <PartyContext value={party}>
       <Screen title="Modify Party" theme={experience.park.theme}>
-        <h2>{experience.name}</h2>
-        <div>{experience.park.name}</div>
+        <h2 className="mt-5">{experience.name}</h2>
+        <div className="mt-0.5 text-[15px] text-muted">
+          {experience.park.name}
+        </div>
         <h3>Your Party</h3>
         <GuestList
           guests={eligible}

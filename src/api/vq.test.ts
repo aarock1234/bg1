@@ -1,14 +1,28 @@
 import { expectFetch, respond, response } from '@/__fixtures__/client';
-import { wdw } from '@/__fixtures__/vq';
-import { guests, mtwr, queues, rotr, santa } from '@/__fixtures__/vq';
+import {
+  fifi,
+  guests,
+  mickey,
+  minnie,
+  mtwr,
+  pluto,
+  queues,
+  rotr,
+  santa,
+  wdw,
+} from '@/__fixtures__/vq';
+import { fetchJson } from '@/fetch';
 
-import { RequestError } from './client';
+import { APP_VERSION, RequestError } from './client';
 import { Guest, VQClient, sortGuests } from './vq';
 
 jest.mock('@/ratelimit');
 
 expectFetch.baseUrl =
   'https://vqguest-svc-wdw.wdprapps.disney.com/application/v1/guest/';
+expectFetch.headers = {
+  'x-vq-guest-app-version': APP_VERSION,
+};
 
 describe('VQClient', () => {
   const client = new VQClient(wdw);
@@ -126,12 +140,18 @@ describe('VQClient', () => {
 
   describe('joinQueue()', () => {
     afterEach(() => {
-      expectFetch('joinQueue', {
-        data: {
-          queueId: rotr.id,
-          guestIds: guests.map(g => g.id),
+      expectFetch(
+        'joinQueue',
+        {
+          data: {
+            queueId: rotr.id,
+            guestIds: guests.map(guest => guest.id),
+          },
         },
-      });
+        {
+          sensorData: true,
+        }
+      );
     });
 
     it('returns success result', async () => {
@@ -143,13 +163,16 @@ describe('VQClient', () => {
       });
     });
 
-    it('returns partial success result', async () => {
-      respond(jqInvalidRes([guests[0]!]), jqSuccessRes(guests.slice(1)));
+    it('returns conflicts without retrying when guests are invalid', async () => {
+      respond(jqInvalidRes([mickey]));
       expect(await client.joinQueue(rotr, guests)).toEqual({
-        boardingGroup: 77,
+        boardingGroup: null,
         closed: false,
-        conflicts: { [guests[0]!.id]: 'NO_PARK_PASS' },
+        conflicts: {
+          [mickey.id]: 'NO_PARK_PASS',
+        },
       });
+      expect(fetchJson).toHaveBeenCalledTimes(1);
     });
 
     it('returns closed queue failure result', async () => {
@@ -185,11 +208,10 @@ describe('VQClient', () => {
 });
 
 describe('sortGuests()', () => {
-  it('sorts in place', () => {
-    let g = guests;
-    g = [g[3]!, g[1]!, g[0]!, g[2]!];
-    const sorted = sortGuests(g);
+  it('returns a sorted copy', () => {
+    const unsorted = [pluto, minnie, mickey, fifi];
+    const sorted = sortGuests(unsorted);
     expect(sorted).toEqual(guests);
-    expect(sorted).toBe(g);
+    expect(unsorted).toEqual([pluto, minnie, mickey, fifi]);
   });
 });

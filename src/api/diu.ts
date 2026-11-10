@@ -1,55 +1,63 @@
-import forge from 'node-forge';
+import { bytesToBinaryString } from './crypto';
 
-const PUBLIC_KEY_STRING =
-  '-----BEGIN PUBLIC KEY-----MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAofk7tvl26d48HL0if2gE8uPt18KJHDOQ7WZr4lsiiEisu3BrPwkGM6y8VJzOZLgak3foNLkMOxFwtP9wOECM9QPaOMeReTGNpv+9y496UnYON3WiRGUgdPrMOG+Q75kWsZHrpvbdGoF35dQqAXAaM7yAKOgeMX7vfHltK4sWcn7MX3K64oBJFPDnfWgcbEVevyfA3ARZ/Gt2PeGPqJjdIYDVYiRxF/fTgC60GejRbNPP8AkFBTZ42k13aKuL/Own2fsdYPpJl1RoJyg2gIOWP8j3S2IjWEMBwDUf3vC2KqlqSKL6uztl7+hjeMjD8hjhDz89W0WcXZg74SvG0rp6/wIDAQAB-----END PUBLIC KEY-----';
+// Disney's RSA public key for the "disney internal use" booking fields.
+const PUBLIC_KEY_PEM = `-----BEGIN PUBLIC KEY-----
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAofk7tvl26d48HL0if2gE8uPt18KJHDOQ7WZr4lsiiEisu3BrPwkGM6y8VJzOZLgak3foNLkMOxFwtP9wOECM9QPaOMeReTGNpv+9y496UnYON3WiRGUgdPrMOG+Q75kWsZHrpvbdGoF35dQqAXAaM7yAKOgeMX7vfHltK4sWcn7MX3K64oBJFPDnfWgcbEVevyfA3ARZ/Gt2PeGPqJjdIYDVYiRxF/fTgC60GejRbNPP8AkFBTZ42k13aKuL/Own2fsdYPpJl1RoJyg2gIOWP8j3S2IjWEMBwDUf3vC2KqlqSKL6uztl7+hjeMjD8hjhDz89W0WcXZg74SvG0rp6/wIDAQAB
+-----END PUBLIC KEY-----`;
+
 const PUBLIC_KEY_VERSION = '2';
 
-export type SignedPayload = {
+const AES_KEY_BITS = 128;
+const IV_LENGTH = 12;
+
+// The fields Disneyland expects alongside an offer ID when booking: the offer
+// ID encrypted with a one-time AES key, the public key version, and that AES
+// key encrypted with Disney's public key.
+export type DisneyInternalUseFields = {
   disneyInternalUse01: string;
   disneyInternalUse02: string;
   disneyInternalUse03: string;
 };
 
-function Uint8ArrayToString(arrayBuffer: ArrayBuffer): string {
-  return String.fromCharCode(...new Uint8Array(arrayBuffer));
-}
-
-// Generates a "disney internal use" payload for a given offer ID
-export default async function diu(offerId: string): Promise<SignedPayload> {
-  const aesKey = await window.crypto.subtle.generateKey(
+export async function encryptOfferId(
+  offerId: string
+): Promise<DisneyInternalUseFields> {
+  const offerKey = await crypto.subtle.generateKey(
     {
       name: 'AES-GCM',
-      length: 128,
+      length: AES_KEY_BITS,
     },
     true,
     ['encrypt']
   );
-  const iv = window.crypto.getRandomValues(new Uint8Array(12));
+  const iv = crypto.getRandomValues(new Uint8Array(IV_LENGTH));
 
-  const encryptedPayload = await window.crypto.subtle.encrypt(
+  const encryptedOfferId = await crypto.subtle.encrypt(
     {
       name: 'AES-GCM',
       iv,
     },
-    aesKey,
+    offerKey,
     new TextEncoder().encode(offerId)
   );
-
-  const disneyInternalUse01 = btoa(
-    [iv, encryptedPayload].map(Uint8ArrayToString).join('')
-  );
-
-  const rsaKey = forge.pki.publicKeyFromPem(PUBLIC_KEY_STRING);
-
-  const disneyInternalUse03 = btoa(
-    rsaKey.encrypt(
-      Uint8ArrayToString(await window.crypto.subtle.exportKey('raw', aesKey))
-    )
+  const encryptedOfferKey = await encryptWithPublicKey(
+    await crypto.subtle.exportKey('raw', offerKey)
   );
 
   return {
-    disneyInternalUse01,
+    disneyInternalUse01: btoa(
+      bytesToBinaryString(iv) + bytesToBinaryString(encryptedOfferId)
+    ),
     disneyInternalUse02: PUBLIC_KEY_VERSION,
-    disneyInternalUse03,
+    disneyInternalUse03: btoa(encryptedOfferKey),
   };
+}
+
+// Web Crypto has no RSA PKCS#1 v1.5 encryption, so this needs node-forge. It
+// is loaded on demand because only Disneyland bookings use it.
+async function encryptWithPublicKey(bytes: ArrayBuffer): Promise<string> {
+  const { pki } = await import('node-forge');
+  const publicKey = pki.publicKeyFromPem(PUBLIC_KEY_PEM);
+
+  return publicKey.encrypt(bytesToBinaryString(bytes));
 }

@@ -12,7 +12,7 @@ import {
   pluto,
   wdw,
 } from '@/__fixtures__/ll';
-import { ParkTime } from '@/datetime';
+import { DateTime, ParkTime } from '@/datetime';
 import { TODAY, YESTERDAY, setTime } from '@/testing';
 
 import { Booking, ItineraryClient, LightningLane } from './itinerary';
@@ -231,7 +231,10 @@ describe('ItineraryClient', () => {
 
     it('shows MEP carried over from previous day as starting today', async () => {
       const bookingsRes = bookingsResponse([
-        { ...multiExp, start: { date: YESTERDAY, time: new ParkTime(23) } },
+        {
+          ...multiExp,
+          start: new DateTime(YESTERDAY, new ParkTime(23)),
+        },
       ]);
       respond(bookingsRes);
       expect(await client.plans()).toEqual([

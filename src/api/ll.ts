@@ -1,28 +1,40 @@
 import { DateTime, ParkTime, parkDate } from '@/datetime';
+import { JsonOK } from '@/fetch';
 import kvdb from '@/kvdb';
 
 import { authStore } from './auth';
 import { avatarUrl } from './avatar';
-import { ApiClient } from './client';
+import { ApiClient, ApiClientOptions, ApiRequest } from './client';
 import { Booking, LLMP, isLLMP } from './itinerary';
-import { Experience as ExpData, InvalidId, Park, Resort } from './resort';
+import {
+  Experience as ExperienceData,
+  InvalidId,
+  Park,
+  Resort,
+} from './resort';
 
 export type { LLMP };
 
-interface Standby {
+export const BOOKINGS_KEY = 'bg1.ll.bookings';
+
+const TIME_PATTERN = /^\d{2}:\d{2}:\d{2}$/;
+
+// Sorts guests with no known eligibility time after those who have one.
+const NEVER_ELIGIBLE = 24 * 60 * 60;
+
+type Standby = {
   available?: boolean;
   unavailableReason?:
-    | 'TEMPORARILY_DOWN'
-    | 'NOT_STANDBY_ENABLED'
-    | 'NO_MORE_SHOWS'
-    | 'CLOSED';
+    'TEMPORARILY_DOWN' | 'NOT_STANDBY_ENABLED' | 'NO_MORE_SHOWS' | 'CLOSED';
   waitTime?: number;
-}
+};
 
-interface ApiExperience {
+type ApiExperience = {
   id: string;
   type: 'ATTRACTION' | 'ENTERTAINMENT';
-  standby: Standby & { nextShowTime?: string };
+  standby: Standby & {
+    nextShowTime?: string;
+  };
   additionalShowTimes?: string[];
   flex?: {
     available?: boolean;
@@ -38,8 +50,31 @@ interface ApiExperience {
     available: boolean;
     nextAvailableTime?: string;
   };
-}
+};
 
+type EligibilityWindow = {
+  time: {
+    time: string;
+    timeDisplayString: string;
+    timeStatus: 'NOW' | 'LATER';
+  };
+  guestIds: string[];
+};
+
+type ExperiencesResponse = {
+  availableExperiences: ApiExperience[];
+  eligibility?: {
+    geniePlusEligibility?: Record<
+      string,
+      {
+        flexEligibilityWindows?: EligibilityWindow[];
+      }
+    >;
+    guestIds: string[];
+  };
+};
+
+// The type of `T` after withParkTimes has parsed its time fields.
 type WithParkTimes<T> = T extends object
   ? {
       [K in keyof T]: K extends `${string}Time`
@@ -52,28 +87,7 @@ type WithParkTimes<T> = T extends object
     }
   : T;
 
-export function replaceTimeStrings<T extends { [k: string]: any }>(
-  obj: T
-): WithParkTimes<T> {
-  if (typeof obj !== 'object') return obj;
-
-  for (const [k, v] of Object.entries(obj)) {
-    switch (typeof v) {
-      case 'string':
-        if (k.endsWith('Time') && v.match(/^\d{2}:\d{2}:\d{2}$/)) {
-          (obj as any)[k] = ParkTime.from(v);
-        }
-        break;
-      case 'object':
-        (obj as any)[k] = replaceTimeStrings(v);
-        break;
-    }
-  }
-
-  return obj as WithParkTimes<T>;
-}
-
-export type Experience = ExpData &
+export type Experience = ExperienceData &
   Omit<
     WithParkTimes<ApiExperience>,
     'type' | 'standby' | 'additionalShowTimes'
@@ -82,26 +96,10 @@ export type Experience = ExpData &
     experienced?: boolean;
     showTimes?: ParkTime[];
   };
+
 export type FlexExperience = Experience & Required<Pick<Experience, 'flex'>>;
 
-interface ExperiencesResponse {
-  availableExperiences: ApiExperience[];
-  eligibility?: {
-    geniePlusEligibility?: {
-      [date: string]: {
-        flexEligibilityWindows?: {
-          time: {
-            time: string;
-            timeDisplayString: string;
-            timeStatus: 'NOW' | 'LATER';
-          };
-          guestIds: string[];
-        }[];
-      };
-    };
-    guestIds: string[];
-  };
-}
+export type OfferExperience = Omit<Experience, 'standby'>;
 
 export type IneligibleReason =
   | 'INVALID_PARK_ADMISSION'
@@ -116,55 +114,54 @@ export type IneligibleReason =
   | 'TIER_LIMIT_REACHED'
   | 'TOO_EARLY_FOR_NEXT_PARK';
 
-interface GuestEligibility {
-  ineligibleReason?: IneligibleReason;
-  eligibleAfter?: ParkTime;
-}
-
-export interface OrderDetails {
+export type OrderDetails = {
   externalIdentifier: {
     id: string;
     idType: string;
   };
   orderId: string;
   orderItemId: string;
-}
+};
 
-export interface Guest extends GuestEligibility {
+export type Guest = {
   id: string;
   name: string;
   primary?: boolean;
   avatarImageUrl?: string;
   transactional?: boolean;
   orderDetails?: OrderDetails;
-}
+  ineligibleReason?: IneligibleReason;
+  eligibleAfter?: ParkTime;
+};
 
-export interface Guests {
+export type Guests = {
   eligible: Guest[];
   ineligible: Guest[];
-}
+};
 
-export interface ApiGuest extends GuestEligibility {
+export type ApiGuest = {
   id: string;
-  firstName: string;
-  lastName: string;
+  firstName?: string;
+  lastName?: string;
   primary?: boolean;
   characterId?: string;
   orderDetails?: OrderDetails;
-}
+  ineligibleReason?: IneligibleReason;
+  eligibleAfter?: string;
+};
 
-export interface GuestsResponse {
+export type GuestsResponse = {
   guests: ApiGuest[];
   ineligibleGuests: ApiGuest[];
-}
+};
 
-export type OfferExperience = Omit<Experience, 'standby'>;
-
-interface Overlap {
+type Overlap = {
   contains: (time: ParkTime) => boolean;
-}
+};
 
-export interface OfferItineraryItem {
+// Another plan on the guest's day, shown alongside an offer so that
+// overlapping return times stand out.
+export type OfferItineraryItem = {
   overlap: Overlap;
   facilityId: string;
   startTime: ParkTime;
@@ -173,123 +170,254 @@ export interface OfferItineraryItem {
     showStartTime: ParkTime;
     showEndTime: ParkTime;
   };
-}
+};
 
-export interface Offer<B = LLMP | undefined> {
+export type ParkHours = {
+  openTime: ParkTime;
+  closeTime: ParkTime;
+};
+
+// A return window Disney is holding for the party. `booking` is the existing
+// Lightning Lane when the offer would modify one.
+export type Offer<B = LLMP | undefined> = {
   id: string;
   start: DateTime;
   end: DateTime;
   changed?: boolean;
-  guests: {
-    eligible: Guest[];
-    ineligible: Guest[];
-  };
+  guests: Guests;
   experience: OfferExperience;
   itinerary: OfferItineraryItem[];
-  parkHours?: { openTime: ParkTime; closeTime: ParkTime };
+  parkHours?: ParkHours;
   offerSetId?: string;
   booking: B;
-}
+};
 
+export type OfferOptions<B> =
+  | {
+      date: string;
+    }
+  | {
+      booking?: B;
+    };
+
+// Available return times, grouped by hour.
 export type HourlyTimes = ParkTime[][];
+
+// What each resort's Lightning Lane system supports.
+export type LLRules = {
+  maxPartySize: number;
+
+  // A booking can be moved to an experience in another park.
+  parkModify: boolean;
+
+  // Lightning Lanes can be booked for a future date.
+  prebook: boolean;
+
+  // The guest can choose a return time instead of taking the next one.
+  timeSelect: boolean;
+};
+
+export type LLClientOptions = ApiClientOptions & {
+  tracker?: Public<LLTracker>;
+};
+
+type LLRequest = ApiRequest & {
+  // Adds the logged-in guest's ID to the query string.
+  userId?: boolean;
+};
+
+type LLTrackerData = {
+  booked: string[];
+  experienced: string[];
+};
 
 export class ModifyNotAllowed extends Error {
   name = 'ModifyNotAllowed';
 }
 
-export function throwOnNotModifiable(booking?: Booking) {
-  if (booking && !booking.modifiable) {
-    throw new ModifyNotAllowed();
-  }
-}
-
 export class OfferError extends Error {
   readonly name = 'OfferError';
+
   constructor(readonly guests: Guests) {
     super('Offer request failed');
   }
 }
 
-function compareByReason(a: Guest, b: Guest, reason: IneligibleReason) {
-  return +(b.ineligibleReason === reason) - +(a.ineligibleReason === reason);
+export function throwOnNotModifiable(booking?: Booking): void {
+  if (booking && !booking.modifiable) {
+    throw new ModifyNotAllowed();
+  }
+}
+
+// Returns a copy of API data in which every `HH:MM:SS` string held in a field
+// named `...Time` is a ParkTime.
+export function withParkTimes<T extends object>(data: T): WithParkTimes<T> {
+  const entries = Object.entries(data).map(([key, value]) => {
+    return [key, withParkTime(key, value)];
+  });
+
+  return Object.fromEntries(entries);
+}
+
+function withParkTime(key: string, value: unknown): unknown {
+  if (typeof value === 'string') {
+    const isTime = key.endsWith('Time') && TIME_PATTERN.test(value);
+
+    return isTime ? ParkTime.from(value) : value;
+  }
+
+  if (Array.isArray(value)) {
+    return value.map(item => withParkTime('', item));
+  }
+
+  if (typeof value === 'object' && value !== null) {
+    return withParkTimes(value);
+  }
+
+  return value;
+}
+
+function earliestBookTime(response: ExperiencesResponse): ParkTime | undefined {
+  const eligibility = response.eligibility?.geniePlusEligibility?.[parkDate()];
+  const windows = eligibility?.flexEligibilityWindows ?? [];
+  const [earliestTime] = windows.map(window => window.time.time).sort();
+
+  if (!earliestTime) {
+    return undefined;
+  }
+
+  return ParkTime.from(earliestTime);
+}
+
+function showTimes(experience: ApiExperience): ParkTime[] | undefined {
+  const { nextShowTime } = experience.standby ?? {};
+
+  if (!nextShowTime) {
+    return undefined;
+  }
+
+  const additionalShowTimes = experience.additionalShowTimes ?? [];
+
+  return [nextShowTime, ...additionalShowTimes].map(ParkTime.from);
+}
+
+function hasReason(guest: Guest, reason: IneligibleReason): number {
+  return Number(guest.ineligibleReason === reason);
+}
+
+function reasonFirst(a: Guest, b: Guest, reason: IneligibleReason): number {
+  return hasReason(b, reason) - hasReason(a, reason);
+}
+
+function reasonLast(a: Guest, b: Guest, reason: IneligibleReason): number {
+  return hasReason(a, reason) - hasReason(b, reason);
+}
+
+function eligibleAfterValue(guest: Guest): number {
+  if (!guest.eligibleAfter) {
+    return NEVER_ELIGIBLE;
+  }
+
+  return +guest.eligibleAfter;
+}
+
+// Orders ineligible guests so the ones closest to booking come first: by when
+// they become eligible, then with guests outside the party or without Multi
+// Pass last. Ties go to the primary guest, then by name.
+function compareIneligibleGuests(a: Guest, b: Guest): number {
+  const byPrimaryThenName =
+    Number(!a.primary) - Number(!b.primary) || a.name.localeCompare(b.name);
+
+  if (a.eligibleAfter || b.eligibleAfter) {
+    return eligibleAfterValue(a) - eligibleAfterValue(b) || byPrimaryThenName;
+  }
+
+  if (a.ineligibleReason === b.ineligibleReason) {
+    return byPrimaryThenName;
+  }
+
+  return (
+    reasonLast(a, b, 'NOT_IN_PARTY') ||
+    reasonLast(a, b, 'MULTI_PASS_NEEDED') ||
+    reasonFirst(a, b, 'EXPERIENCE_LIMIT_REACHED') ||
+    byPrimaryThenName
+  );
+}
+
+function isTrackerData(stored: unknown): stored is LLTrackerData {
+  if (typeof stored !== 'object' || stored === null) {
+    return false;
+  }
+
+  return (
+    'booked' in stored &&
+    Array.isArray(stored.booked) &&
+    'experienced' in stored &&
+    Array.isArray(stored.experienced)
+  );
 }
 
 export abstract class LLClient extends ApiClient {
-  readonly rules = {
-    book: false,
+  readonly rules: LLRules = {
     maxPartySize: 12,
     parkModify: false,
     prebook: false,
     timeSelect: false,
   };
-  nextBookTime: ParkTime | undefined;
-  onUnauthorized = () => undefined;
 
-  protected partyIds = new Set<Guest['id']>();
+  // The earliest time today that any guest can book another Lightning Lane.
+  nextBookTime: ParkTime | undefined;
+
+  protected partyIds = new Set<string>();
   protected tracker: Public<LLTracker>;
   #lastOffer: Offer | null = null;
-  #primaryGuestId = '';
 
-  constructor(resort: Resort, tracker?: Public<LLTracker>) {
-    super(resort);
-    this.tracker = tracker ?? new LLTracker();
+  constructor(resort: Resort, options: LLClientOptions = {}) {
+    super(resort, options);
+    this.tracker = options.tracker ?? new LLTracker();
   }
 
-  get lastOffer() {
+  get lastOffer(): Offer | null {
     return this.#lastOffer;
   }
 
-  setPartyIds(partyIds: string[]) {
+  // Limits bookings to the given guests; everyone else is reported as
+  // ineligible. An empty list removes the limit.
+  setPartyIds(partyIds: string[]): void {
     this.partyIds = new Set(partyIds);
   }
 
   async experiences(park: Park, date: string): Promise<Experience[]> {
+    const parkId = encodeURIComponent(park.id);
+
     const { data } = await this.request<ExperiencesResponse>({
-      path: `/tipboard-vas/planning/v1/parks/${encodeURIComponent(
-        park.id
-      )}/experiences/`,
-      params: { date },
+      path: `/tipboard-vas/planning/v1/parks/${parkId}/experiences/`,
+      params: {
+        date,
+      },
       userId: true,
     });
-    const nextBookTimeString = (
-      data.eligibility?.geniePlusEligibility?.[parkDate()]
-        ?.flexEligibilityWindows || []
-    ).sort((a, b) => a.time.time.localeCompare(b.time.time))[0]?.time.time;
-    this.nextBookTime = nextBookTimeString
-      ? ParkTime.from(nextBookTimeString)
-      : undefined;
 
-    return data.availableExperiences.flatMap(exp => {
-      try {
-        return {
-          ...replaceTimeStrings(exp),
-          ...this.resort.experience(exp.id),
-          park,
-          showTimes: exp.standby?.nextShowTime
-            ? [
-                exp.standby.nextShowTime,
-                ...(exp.additionalShowTimes ?? []),
-              ].map(t => ParkTime.from(t))
-            : undefined,
-          experienced: this.tracker.experienced(exp),
-        };
-      } catch (error) {
-        if (error instanceof InvalidId) return [];
-        throw error;
-      }
+    this.nextBookTime = earliestBookTime(data);
+
+    return data.availableExperiences.flatMap(apiExperience => {
+      return this.experience(apiExperience, park) ?? [];
     });
   }
 
-  track(bookings: Booking[]) {
+  track(bookings: Booking[]): void {
     this.tracker.update(bookings, this);
   }
 
-  abstract guests(experience?: { id: string }, date?: string): Promise<Guests>;
+  abstract guests(
+    experience?: Pick<Experience, 'id'>,
+    date?: string
+  ): Promise<Guests>;
 
   abstract offer<B extends Offer['booking']>(
     experience: OfferExperience,
     guests: Guest[],
-    options?: { date: string } | { booking?: B }
+    options?: OfferOptions<B>
   ): Promise<Offer<B>>;
 
   abstract times(offer: Offer): Promise<HourlyTimes>;
@@ -304,150 +432,195 @@ export abstract class LLClient extends ApiClient {
     guestsToModify?: Pick<Guest, 'id'>[]
   ): Promise<LLMP>;
 
-  async cancelBooking(guests: LLMP['guests']) {
-    const ids = guests.map(g => g.entitlementId);
-    const idParam = ids.map(encodeURIComponent).join(',');
+  async cancelBooking(guests: LLMP['guests']): Promise<void> {
+    const entitlementIds = guests
+      .map(guest => encodeURIComponent(guest.entitlementId))
+      .join(',');
+
     await this.request({
-      path: `/ea-vas/api/v1/entitlements/${idParam}`,
+      path: `/ea-vas/api/v1/entitlements/${entitlementIds}`,
       method: 'DELETE',
     });
   }
 
-  protected convertGuest = <T extends ApiGuest>(
-    guest: T
-  ): Omit<
-    T,
-    'id' | 'firstName' | 'lastName' | 'characterId' | 'eligibleAfter'
-  > & {
-    id: string;
-    name: string;
-    avatarImageUrl?: string;
-    eligibleAfter?: ParkTime;
-  } => {
-    const {
-      id,
-      firstName,
-      lastName,
-      characterId,
-      eligibleAfter: eligibleAfterString,
-      ...rest
-    } = guest;
-    let eligibleAfter = eligibleAfterString
-      ? ParkTime.from(eligibleAfterString)
-      : undefined;
-    const name = `${firstName ?? ''} ${lastName ?? ''}`.trim();
-    const avatarImageUrl = avatarUrl(characterId);
-    if (this.partyIds.size > 0 && !this.partyIds.has(id)) {
-      rest.ineligibleReason = 'NOT_IN_PARTY';
-      eligibleAfter = undefined;
-    }
-    return { ...rest, id, name, eligibleAfter, avatarImageUrl };
-  };
+  protected request<T>(request: LLRequest): Promise<JsonOK<T>> {
+    const { userId, ...apiRequest } = request;
 
-  protected async primaryGuestId() {
-    if (!this.#primaryGuestId) {
-      const { eligible, ineligible } = await this.guests();
-      this.#primaryGuestId =
-        [...eligible, ...ineligible].find(g => g.primary)?.id ?? '';
+    if (!userId) {
+      return super.request<T>(apiRequest);
     }
-    return this.#primaryGuestId;
+
+    const { swid } = authStore.getData();
+
+    return super.request<T>({
+      ...apiRequest,
+      params: {
+        ...apiRequest.params,
+        userId: swid,
+      },
+    });
   }
 
-  protected async request<T>(
-    request: Parameters<ApiClient['request']>[0] & { userId?: boolean }
-  ) {
-    if (request.userId) {
-      const { swid } = authStore.getData();
-      request = { ...request };
-      request.params = { ...request.params, userId: swid };
+  // Returns undefined for an experience that isn't in BG1's data.
+  protected experience(
+    apiExperience: ApiExperience,
+    park: Park
+  ): Experience | undefined {
+    let experienceData: ExperienceData;
+
+    try {
+      experienceData = this.resort.experience(apiExperience.id);
+    } catch (error) {
+      if (error instanceof InvalidId) {
+        return undefined;
+      }
+
+      throw error;
     }
-    return super.request<T>(request);
+
+    return {
+      ...withParkTimes(apiExperience),
+      ...experienceData,
+      park,
+      showTimes: showTimes(apiExperience),
+      experienced: this.tracker.experienced(apiExperience),
+    };
+  }
+
+  protected guest(apiGuest: ApiGuest): Guest {
+    const { firstName, lastName, characterId, eligibleAfter, ...fields } =
+      apiGuest;
+
+    const guest: Guest = {
+      ...fields,
+      name: `${firstName ?? ''} ${lastName ?? ''}`.trim(),
+      avatarImageUrl: avatarUrl(characterId),
+      eligibleAfter: eligibleAfter ? ParkTime.from(eligibleAfter) : undefined,
+    };
+
+    const isOutsideParty =
+      this.partyIds.size > 0 && !this.partyIds.has(guest.id);
+
+    if (isOutsideParty) {
+      guest.ineligibleReason = 'NOT_IN_PARTY';
+      guest.eligibleAfter = undefined;
+    }
+
+    return guest;
   }
 
   protected parseGuestData(data: GuestsResponse): Guests {
-    const { guests, ineligibleGuests } = data;
-    const ineligible = ineligibleGuests.map(this.convertGuest);
-    const eligible = guests
-      .map(this.convertGuest)
-      .filter(g => !g.ineligibleReason || (ineligible.push(g) && false));
-    ineligible.sort((a, b) => {
-      const cmp = +!a.primary - +!b.primary || a.name.localeCompare(b.name);
-      if (a.eligibleAfter || b.eligibleAfter) {
-        return +(a.eligibleAfter ?? 86400) - +(b.eligibleAfter ?? 86400) || cmp;
-      }
-      if (a.ineligibleReason === b.ineligibleReason) return cmp;
-      return (
-        compareByReason(b, a, 'NOT_IN_PARTY') ||
-        compareByReason(b, a, 'MULTI_PASS_NEEDED') ||
-        compareByReason(a, b, 'EXPERIENCE_LIMIT_REACHED') ||
-        cmp
-      );
-    });
-    return { eligible, ineligible };
+    const eligible: Guest[] = [];
+    const ineligible = data.ineligibleGuests.map(guest => this.guest(guest));
+
+    // A guest Disney considers eligible is still ineligible when they are
+    // outside the chosen party.
+    for (const apiGuest of data.guests) {
+      const guest = this.guest(apiGuest);
+      const group = guest.ineligibleReason ? ineligible : eligible;
+
+      group.push(guest);
+    }
+
+    ineligible.sort(compareIneligibleGuests);
+
+    return {
+      eligible,
+      ineligible,
+    };
   }
 
+  // Records the offer as the latest one and flags it as changed when its
+  // return time isn't the one the guest was expecting.
   protected updateLastOffer<O extends Offer>(
     offer: O,
     expectedTime: ParkTime | undefined
   ): O {
     offer.changed = +offer.start.time !== +(expectedTime ?? offer.start.time);
     this.#lastOffer = offer;
+
     return offer;
   }
 }
 
-export const BOOKINGS_KEY = 'bg1.ll.bookings';
-
-interface LLTrackerData {
-  booked: Experience['id'][];
-  experienced: Experience['id'][];
-}
-
+// Remembers which experiences the guest has already used a Lightning Lane on
+// today, which Disney's experience list doesn't report.
 export class LLTracker {
-  protected bookedIds = new Set<Experience['id']>();
-  protected experiencedIds = new Set<Experience['id']>();
+  protected bookedIds = new Set<string>();
+  protected experiencedIds = new Set<string>();
 
   constructor() {
     this.load();
   }
 
-  experienced(experience: Pick<Experience, 'id'>) {
+  experienced(experience: Pick<Experience, 'id'>): boolean {
     return this.experiencedIds.has(experience.id);
   }
 
-  async update(bookings: Booking[], client: LLClient) {
+  async update(
+    bookings: Booking[],
+    client: Pick<LLClient, 'guests'>
+  ): Promise<void> {
     this.load();
-    const parkDay = parkDate();
-    const cancellableLLs = bookings
-      .filter(isLLMP)
-      .filter(b => !!b.cancellable && parkDate(b.start) === parkDay);
-    for (const b of cancellableLLs) {
-      this.experiencedIds[b.modifiable ? 'delete' : 'add'](b.experience.id);
+
+    const today = parkDate();
+    const todaysBookings = bookings.filter(isLLMP).filter(booking => {
+      return !!booking.cancellable && parkDate(booking.start) === today;
+    });
+
+    // A Lightning Lane that can no longer be modified has been redeemed.
+    for (const booking of todaysBookings) {
+      this.setExperienced(booking.experience.id, !booking.modifiable);
     }
-    const prevBookedIds = this.bookedIds;
-    this.bookedIds = new Set(cancellableLLs.map(b => b.experience.id));
-    for (const id of prevBookedIds) {
-      if (this.bookedIds.has(id)) continue;
-      const { ineligible } = await client.guests({ id });
-      const limitReached = ineligible.some(
-        g => g.ineligibleReason === 'EXPERIENCE_LIMIT_REACHED'
-      );
-      this.experiencedIds[limitReached ? 'add' : 'delete'](id);
+
+    const previouslyBookedIds = this.bookedIds;
+    this.bookedIds = new Set(
+      todaysBookings.map(booking => booking.experience.id)
+    );
+
+    // A booking that has disappeared was either redeemed or cancelled. Only a
+    // redeemed one counts toward the experience's limit.
+    for (const experienceId of previouslyBookedIds) {
+      if (this.bookedIds.has(experienceId)) {
+        continue;
+      }
+
+      const { ineligible } = await client.guests({
+        id: experienceId,
+      });
+      const isLimitReached = ineligible.some(guest => {
+        return guest.ineligibleReason === 'EXPERIENCE_LIMIT_REACHED';
+      });
+
+      this.setExperienced(experienceId, isLimitReached);
     }
+
     this.save();
   }
 
-  protected load() {
-    const { booked = [], experienced = [] } =
-      kvdb.getDaily<LLTrackerData>(BOOKINGS_KEY) ?? {};
+  protected setExperienced(experienceId: string, isExperienced: boolean): void {
+    if (isExperienced) {
+      this.experiencedIds.add(experienceId);
+    } else {
+      this.experiencedIds.delete(experienceId);
+    }
+  }
+
+  protected load(): void {
+    const stored = kvdb.getDaily(BOOKINGS_KEY);
+    const booked = isTrackerData(stored) ? stored.booked : [];
+    const experienced = isTrackerData(stored) ? stored.experienced : [];
+
     this.bookedIds = new Set(booked);
     this.experiencedIds = new Set(experienced);
   }
 
-  protected save() {
-    kvdb.setDaily<LLTrackerData>(BOOKINGS_KEY, {
+  protected save(): void {
+    const data: LLTrackerData = {
       booked: [...this.bookedIds],
       experienced: [...this.experiencedIds],
-    });
+    };
+
+    kvdb.setDaily(BOOKINGS_KEY, data);
   }
 }

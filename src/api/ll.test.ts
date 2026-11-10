@@ -5,7 +5,6 @@ import {
   donald,
   expiredLL,
   hm,
-  hs,
   ll,
   mickey,
   minnie,
@@ -14,12 +13,11 @@ import {
   offer,
   omitOrderDetails,
   pluto,
-  sdd,
   sm,
   times,
   wdw,
 } from '@/__fixtures__/ll';
-import { DateTime, ParkTime, modifyDate } from '@/datetime';
+import { DateTime, ParkTime } from '@/datetime';
 import kvdb from '@/kvdb';
 import { TODAY, TOMORROW, setTime } from '@/testing';
 
@@ -40,9 +38,12 @@ const diu = {
   disneyInternalUse02: '2',
   disneyInternalUse03: '3',
 };
-jest.mock('./diu', () => ({ __esModule: true, default: () => diu }));
+jest.mock('./diu', () => {
+  return {
+    encryptOfferId: async () => diu,
+  };
+});
 jest.mock('@/ratelimit');
-const onUnauthorized = jest.fn();
 
 function apiGuest<T extends { name: string }>({
   name,
@@ -79,105 +80,45 @@ describe('LLClientWDW', () => {
   let client: LLClientWDW;
 
   beforeEach(() => {
-    client = new LLClientWDW(wdw, tracker);
-    client.onUnauthorized = onUnauthorized;
+    client = new LLClientWDW(wdw, {
+      tracker,
+    });
   });
 
   describe('experiences()', () => {
-    const closed = {
-      standby: { available: false, unavailableReason: 'CLOSED' },
-      flex: { available: false },
-    };
-
-    beforeEach(() => {
-      respond(guestsRes);
-    });
-
     it('returns experiences', async () => {
       const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
-      jest.spyOn(client, 'guests');
-      const res = response({
-        availableExperiences: [hm, sm, { id: 'not_a_real_id' }],
-      });
-      const exps = [
-        { ...hm, experienced: true },
-        { ...sm, experienced: false },
-      ];
-      respond(res);
-      expect(await client.experiences(mk, TODAY)).toEqual(exps);
+      respond(
+        response({
+          availableExperiences: [hm, sm, { id: 'not_a_real_id' }],
+        })
+      );
+      expect(await client.experiences(mk, TODAY)).toEqual([
+        {
+          ...hm,
+          experienced: true,
+        },
+        {
+          ...sm,
+          experienced: false,
+        },
+      ]);
       expectFetch(
         `/tipboard-vas/planning/v1/parks/${encodeURIComponent(mk.id)}/experiences`,
-        { params: { date: TODAY, eligibilityGuestIds: mickey.id } },
-        true,
-        2
+        {
+          params: {
+            date: TODAY,
+          },
+        },
+        {
+          appendUserId: true,
+        }
       );
       expect(warn).toHaveBeenCalledTimes(1);
       expect(warn).toHaveBeenLastCalledWith(
-        'Missing experience: not_a_real_id'
+        'missing experience: not_a_real_id'
       );
-
-      respond(res);
-      expect(await client.experiences(mk, TODAY)).toEqual(exps);
-
-      expect(client.guests).toHaveBeenCalledTimes(1);
       warn.mockRestore();
-    });
-
-    it('uses fallback when no experiences reported by tipboard', async () => {
-      const noExpsRes = response({ availableExperiences: [] });
-      const availabilityRes = response({
-        tiers: [
-          { experiences: [{ facilityId: sm.id }] },
-          { experiences: [{ facilityId: hm.id }] },
-        ],
-      });
-      respond(noExpsRes, availabilityRes);
-      const exps = [sm, hm].map(exp => ({ ...exp, ...closed }));
-      expect(await client.experiences(mk, TODAY)).toEqual(exps);
-      expectFetch(
-        '/ea-vas/planning/api/v1/experiences/availability/bundles/experiences',
-        {
-          data: {
-            parkId: mk.id,
-            date: TODAY,
-            guestIds: [mickey.id],
-            existingOfferIds: [],
-            orderId: null,
-          },
-        },
-        false,
-        3
-      );
-
-      respond(noExpsRes);
-      expect(await client.experiences(mk, TODAY)).toEqual(exps);
-    });
-
-    it('checks for new/re-opening experiences on future dates', async () => {
-      const noExpsRes = response({ availableExperiences: [hm] });
-      const availabilityRes = response({
-        tiers: [{ experiences: [{ facilityId: sm.id }] }],
-      });
-      respond(noExpsRes, availabilityRes);
-      const exps = [
-        { ...hm, experienced: true },
-        { ...sm, ...closed },
-      ];
-      expect(await client.experiences(mk, TOMORROW)).toEqual(exps);
-
-      respond(noExpsRes, availabilityRes);
-      const dayAfterTomorrow = modifyDate(TOMORROW, 1);
-      expect(await client.experiences(mk, dayAfterTomorrow)).toEqual(exps);
-
-      respond(
-        response({ availableExperiences: [] }),
-        response({
-          tiers: [{ experiences: [{ facilityId: sdd.id }] }],
-        })
-      );
-      expect(await client.experiences(hs, TOMORROW)).toEqual([
-        { ...sdd, ...closed },
-      ]);
     });
   });
 
@@ -200,13 +141,19 @@ describe('LLClientWDW', () => {
         eligible: [mickey, minnie, pluto],
         ineligible: ineligibleGuests,
       });
-      expectFetch(guestsUrl, {
-        data: {
-          date: TODAY,
-          facilityId: hm.id,
-          parkId: mk.id,
+      expectFetch(
+        guestsUrl,
+        {
+          data: {
+            date: TODAY,
+            facilityId: hm.id,
+            parkId: mk.id,
+          },
         },
-      });
+        {
+          sensorData: true,
+        }
+      );
     });
 
     it('includes avatarImageUrls when characterId exists', async () => {
@@ -365,16 +312,22 @@ describe('LLClientWDW', () => {
 
     it('obtains Lightning Lane offer', async () => {
       await expectOffer(hm, guests, { date: TOMORROW }, offer);
-      expectFetch('/ea-vas/planning/api/v1/experiences/offerset/generate', {
-        data: {
-          date: TOMORROW,
-          guestIds: guests.map(g => g.id),
-          parkId: mk.id,
-          experienceIds: [hm.id],
-          targetedTime: hm.flex.nextAvailableTime,
-          ignoredBookedExperienceIds: null,
+      expectFetch(
+        '/ea-vas/planning/api/v1/experiences/offerset/generate',
+        {
+          data: {
+            date: TOMORROW,
+            guestIds: guests.map(g => g.id),
+            parkId: mk.id,
+            experienceIds: [hm.id],
+            targetedTime: hm.flex.nextAvailableTime,
+            ignoredBookedExperienceIds: null,
+          },
         },
-      });
+        {
+          sensorData: true,
+        }
+      );
     });
 
     it('obtains offer to modify existing booking', async () => {
@@ -390,18 +343,24 @@ describe('LLClientWDW', () => {
           booking,
         }
       );
-      expectFetch('/ea-vas/planning/api/v1/experiences/mod/offerset/generate', {
-        data: {
-          date: booking.start.date,
-          guestIds: guests.map(g => g.id),
-          parkId: mk.id,
-          experienceId: sm.id,
-          originalExperienceId: hm.id,
-          originalEntitlementIds: booking.guests.map(g => g.entitlementId),
-          targetedTime: sm.flex.nextAvailableTime,
-          ignoredBookedExperienceIds: null,
+      expectFetch(
+        '/ea-vas/planning/api/v1/experiences/mod/offerset/generate',
+        {
+          data: {
+            date: booking.start.date,
+            guestIds: guests.map(g => g.id),
+            parkId: mk.id,
+            experienceId: sm.id,
+            originalExperienceId: hm.id,
+            originalEntitlementIds: booking.guests.map(g => g.entitlementId),
+            targetedTime: sm.flex.nextAvailableTime,
+            ignoredBookedExperienceIds: null,
+          },
         },
-      });
+        {
+          sensorData: true,
+        }
+      );
     });
 
     it('throws OfferError if no offer in response', async () => {
@@ -509,7 +468,10 @@ describe('LLClientWDW', () => {
       expect(await client.times(modOffer)).toEqual(times);
       expectFetch(
         '/ea-vas/planning/api/v1/experiences/mod/offerset/times',
-        timesReq
+        timesReq,
+        {
+          sensorData: true,
+        }
       );
     });
   });
@@ -549,7 +511,10 @@ describe('LLClientWDW', () => {
       expect(await client.changeOfferTime(offer, time)).toEqual(newOffer);
       expectFetch(
         '/ea-vas/planning/api/v1/experiences/offerset/times/fulfill',
-        changeReq
+        changeReq,
+        {
+          sensorData: true,
+        }
       );
     });
 
@@ -590,6 +555,9 @@ describe('LLClientWDW', () => {
             offerSetId: offer.offerSetId,
             offerSetIds: undefined,
           },
+        },
+        {
+          sensorData: true,
         }
       );
     });
@@ -620,21 +588,27 @@ describe('LLClientWDW', () => {
         ...booking,
         experience: offer.experience,
       });
-      expectFetch('/ea-vas/planning/api/v1/experiences/entitlements/book', {
-        data: {
-          offerSetId: offer.offerSetId,
-          orderGuestDetails: guests.map(g => ({
-            orderId: g.orderDetails.orderId,
-            orderItemId: g.orderDetails.orderItemId,
-            guestDetails: [
-              {
-                guestId: g.id,
-                externalIdentifier: g.orderDetails.externalIdentifier,
-              },
-            ],
-          })),
+      expectFetch(
+        '/ea-vas/planning/api/v1/experiences/entitlements/book',
+        {
+          data: {
+            offerSetId: offer.offerSetId,
+            orderGuestDetails: guests.map(g => ({
+              orderId: g.orderDetails.orderId,
+              orderItemId: g.orderDetails.orderItemId,
+              guestDetails: [
+                {
+                  guestId: g.id,
+                  externalIdentifier: g.orderDetails.externalIdentifier,
+                },
+              ],
+            })),
+          },
         },
-      });
+        {
+          sensorData: true,
+        }
+      );
     });
 
     it('modifies an existing LL', async () => {
@@ -662,16 +636,22 @@ describe('LLClientWDW', () => {
         experience: modOffer.experience,
         guests: modGuests,
       });
-      expectFetch('/ea-vas/planning/api/v1/experiences/mod/entitlements/book', {
-        data: {
-          offerSetId: modOffer.offerSetId,
-          eligibleGuestsEntitlements: modGuests.map(g => ({
-            guestId: g.id,
-            entitlementId: g.entitlementId,
-            ...orderDetailsById.get(g.id),
-          })),
+      expectFetch(
+        '/ea-vas/planning/api/v1/experiences/mod/entitlements/book',
+        {
+          data: {
+            offerSetId: modOffer.offerSetId,
+            eligibleGuestsEntitlements: modGuests.map(g => ({
+              guestId: g.id,
+              entitlementId: g.entitlementId,
+              ...orderDetailsById.get(g.id),
+            })),
+          },
         },
-      });
+        {
+          sensorData: true,
+        }
+      );
     });
 
     it('throws RequestError on failure', async () => {
@@ -709,8 +689,9 @@ describe('LLClientDLR', () => {
   let client: LLClientDLR;
 
   beforeEach(() => {
-    client = new LLClientDLR(wdw, tracker);
-    client.onUnauthorized = onUnauthorized;
+    client = new LLClientDLR(wdw, {
+      tracker,
+    });
   });
 
   describe('setPartyIds()', () => {
@@ -743,7 +724,10 @@ describe('LLClientDLR', () => {
             parkId: mk.id,
           },
         },
-        true
+        {
+          appendUserId: true,
+          sensorData: true,
+        }
       );
     });
   });
@@ -772,16 +756,22 @@ describe('LLClientDLR', () => {
       const newOffer = await client.offer(hm, offer.guests.eligible);
       expect(newOffer).toEqual(dlrOffer);
       expect(client.lastOffer).toBe(newOffer);
-      expectFetch('/ea-vas/api/v2/products/flex/offers', {
-        data: {
-          guestIds: offer.guests.eligible.map(g => g.id),
-          ineligibleGuests: [],
-          primaryGuestId: mickey.id,
-          parkId: mk.id,
-          experienceId: hm.id,
-          selectedTime: hm.flex.nextAvailableTime,
+      expectFetch(
+        '/ea-vas/api/v2/products/flex/offers',
+        {
+          data: {
+            guestIds: offer.guests.eligible.map(g => g.id),
+            ineligibleGuests: [],
+            primaryGuestId: mickey.id,
+            parkId: mk.id,
+            experienceId: hm.id,
+            selectedTime: hm.flex.nextAvailableTime,
+          },
         },
-      });
+        {
+          sensorData: true,
+        }
+      );
     });
 
     it('reports changed return time', async () => {
@@ -876,9 +866,18 @@ describe('LLClientDLR', () => {
           },
         })
       ).toEqual({ ...booking, experience: offer.experience });
-      expectFetch('/ea-vas/api/v2/products/flex/bookings', {
-        data: { offerId: offer.id, ...diu },
-      });
+      expectFetch(
+        '/ea-vas/api/v2/products/flex/bookings',
+        {
+          data: {
+            offerId: offer.id,
+            ...diu,
+          },
+        },
+        {
+          sensorData: true,
+        }
+      );
     });
 
     it('throws RequestError on failure', async () => {

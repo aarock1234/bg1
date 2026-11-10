@@ -3,46 +3,73 @@ import kvdb from '@/kvdb';
 
 export const AUTH_KEY = 'bg1.auth';
 
-export interface AuthData {
+// A token expiring earlier in the day than this would not last through a park
+// visit, so it is treated as already expired.
+const EARLIEST_SAME_DAY_EXPIRY = new ParkTime(17);
+
+export type AuthData = {
   swid: string;
   accessToken: string;
   expires: number;
-}
+};
+
+export type Credentials = Pick<AuthData, 'swid' | 'accessToken'>;
 
 export class ReauthNeeded extends Error {
   name = 'ReauthNeeded';
 
   constructor() {
-    super(`Auth data missing or expired`);
+    super('Auth data missing or expired');
   }
+}
+
+function isAuthData(stored: unknown): stored is AuthData {
+  if (typeof stored !== 'object' || stored === null) {
+    return false;
+  }
+
+  return (
+    'swid' in stored &&
+    typeof stored.swid === 'string' &&
+    'accessToken' in stored &&
+    typeof stored.accessToken === 'string' &&
+    'expires' in stored &&
+    Number.isFinite(stored.expires)
+  );
+}
+
+function isStillUsable(expires: number): boolean {
+  const expiry = DateTime.from(expires);
+  const now = DateTime.now();
+
+  const hasExpired = expiry.toString() <= now.toString();
+
+  if (hasExpired) {
+    return false;
+  }
+
+  return expiry.date > now.date || expiry.time >= EARLIEST_SAME_DAY_EXPIRY;
 }
 
 export class AuthStore {
   onUnauthorized: () => void = () => undefined;
 
-  getData(): Pick<AuthData, 'swid' | 'accessToken'> {
-    try {
-      const data = kvdb.get<AuthData>(AUTH_KEY);
-      if (data) {
-        const { swid, accessToken, expires } = data;
-        const exp = DateTime.from(expires);
-        const now = DateTime.now();
-        if (
-          exp > now &&
-          (exp.date > now.date || exp.time >= new ParkTime(17))
-        ) {
-          return { swid, accessToken };
-        }
-      }
-    } catch (error) {
-      console.error(error);
+  getData(): Credentials {
+    const stored = kvdb.get(AUTH_KEY);
+
+    if (isAuthData(stored) && isStillUsable(stored.expires)) {
+      return {
+        swid: stored.swid,
+        accessToken: stored.accessToken,
+      };
     }
+
     this.deleteData();
     throw new ReauthNeeded();
   }
 
   setData(data: AuthData): void {
-    kvdb.set<AuthData>(AUTH_KEY, data);
+    kvdb.set(AUTH_KEY, data);
   }
 
   deleteData(): void {

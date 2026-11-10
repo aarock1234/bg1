@@ -1,9 +1,12 @@
-import { JsonResponse } from '@/fetch';
+import { JsonOK, JsonResponse } from '@/fetch';
 
-import { ApiClient, RequestError } from './client';
-import { InvalidId, Park } from './resort';
+import { APP_VERSION, ApiClient, RequestError } from './client';
+import { InvalidId, Park, ResortId } from './resort';
 
-interface BaseQueue {
+const STATUS_UNAUTHORIZED = 401;
+const STATUS_SERVER_ERROR = 500;
+
+type QueueFields = {
   name: string;
   isAcceptingJoins: boolean;
   isAcceptingPartyCreation: boolean;
@@ -11,118 +14,155 @@ interface BaseQueue {
   nextScheduledPartyCreationOpenTime: string | null;
   maxPartySize: number;
   categoryContentId?: 'attraction' | 'character' | 'special-event';
-}
+};
 
-export interface Queue extends BaseQueue {
+export type Queue = QueueFields & {
   id: string;
   park?: Park;
-}
+};
 
-export interface ApiQueue extends BaseQueue {
+export type ApiQueue = QueueFields & {
   queueId: string;
   tabContentId?: string;
-}
+};
 
-interface GetQueuesRequest {
-  resource: 'getQueues';
-}
-
-interface GetQueuesResponse {
-  queues: ApiQueue[];
-}
-
-interface BaseGuest {
-  avatarImageUrl?: string;
-}
-
-export interface Guest extends BaseGuest {
+export type Guest = {
   id: string;
   name: string;
   primary: boolean;
   preselected: boolean;
-}
+  avatarImageUrl?: string;
+};
 
-interface ApiGuest extends BaseGuest {
+type ApiGuest = {
   guestId: string;
-  firstName: string;
-  lastName: string;
+  firstName?: string;
+  lastName?: string;
   isPrimaryGuest?: boolean;
   isPreselected?: boolean;
-}
+  avatarImageUrl?: string;
+};
 
-export interface Position {
+export type Position = {
   queueId: string;
   guestIds: string[];
   boardingGroup: number;
   queuedAt: number;
-}
-
-interface JoinQueueRequest {
-  resource: 'joinQueue';
-  data: {
-    queueId: string;
-    guestIds: string[];
-  };
-}
-
-interface JoinQueueOKResponse {
-  responseStatus: 'OK';
-  queues: Queue[];
-  guests: ApiGuest[];
-  positions: Position[];
-}
+};
 
 type JoinQueueConflictType =
-  | 'NO_PARK_PASS'
-  | 'NOT_IN_PARK'
-  | 'REDEEM_LIMIT_REACHED';
+  'NO_PARK_PASS' | 'NOT_IN_PARK' | 'REDEEM_LIMIT_REACHED';
 
-interface JoinQueueConflictsResponse {
-  responseStatus: 'INVALID_GUEST' | 'CLOSED_QUEUE';
-  conflicts: {
-    conflictType: JoinQueueConflictType;
-    guestIds: string[];
-  }[];
-}
+type JoinQueueConflict = {
+  conflictType: JoinQueueConflictType;
+  guestIds: string[];
+};
 
-type JoinQueueResponse = JoinQueueOKResponse | JoinQueueConflictsResponse;
+export type JoinQueueConflicts = Record<string, JoinQueueConflictType>;
 
-export type JoinQueueConflicts = { [guestId: string]: JoinQueueConflictType };
-
-export interface JoinQueueResult {
+// The outcome of trying to join a queue. `boardingGroup` is null when the
+// party didn't get in, either because the queue closed or because of the
+// listed guest conflicts.
+export type JoinQueueResult = {
   boardingGroup: number | null;
   conflicts: JoinQueueConflicts;
   closed: boolean;
+};
+
+type GetQueuesResponse = {
+  queues?: ApiQueue[];
+};
+
+type GetLinkedGuestsResponse = {
+  responseStatus: 'OK';
+  guests: ApiGuest[];
+};
+
+type JoinQueueResponse =
+  | {
+      responseStatus: 'OK';
+      queues: Queue[];
+      guests: ApiGuest[];
+      positions: Position[];
+    }
+  | {
+      responseStatus: 'INVALID_GUEST' | 'CLOSED_QUEUE';
+      conflicts: JoinQueueConflict[];
+    };
+
+type VQRequest =
+  | {
+      resource: 'getQueues';
+    }
+  | {
+      resource: 'getLinkedGuests';
+      data: {
+        queueId: string;
+        requestType: 'REVIEW' | 'CHANGE';
+      };
+    }
+  | {
+      resource: 'joinQueue';
+      data: {
+        queueId: string;
+        guestIds: string[];
+      };
+      sensorData: true;
+    };
+
+// Orders the primary guest first, then preselected guests, then by name.
+export function sortGuests(guests: Guest[]): Guest[] {
+  return [...guests].sort((a, b) => {
+    return (
+      Number(b.primary) - Number(a.primary) ||
+      Number(b.preselected) - Number(a.preselected) ||
+      a.name.localeCompare(b.name)
+    );
+  });
 }
 
-interface GetLinkedGuestsRequest {
-  resource: 'getLinkedGuests';
-  data: {
-    queueId: string;
-    requestType: 'REVIEW' | 'CHANGE';
+function toGuest(apiGuest: ApiGuest): Guest {
+  const firstName = apiGuest.firstName ?? '';
+  const lastName = apiGuest.lastName ?? '';
+
+  return {
+    id: apiGuest.guestId,
+    name: `${firstName} ${lastName}`.trim(),
+    primary: !!apiGuest.isPrimaryGuest,
+    preselected: !!apiGuest.isPreselected,
+    avatarImageUrl: apiGuest.avatarImageUrl,
   };
 }
 
-interface GetLinkedGuestsOKResponse {
-  responseStatus: 'OK';
-  guests: ApiGuest[];
+function conflictsByGuestId(
+  conflicts: JoinQueueConflict[],
+  requestedGuestIds: string[]
+): JoinQueueConflicts {
+  const conflictsByGuestId: JoinQueueConflicts = {};
+
+  for (const conflict of conflicts) {
+    for (const guestId of conflict.guestIds) {
+      if (requestedGuestIds.includes(guestId)) {
+        conflictsByGuestId[guestId] = conflict.conflictType;
+      }
+    }
+  }
+
+  return conflictsByGuestId;
 }
 
-type VQRequest = GetQueuesRequest | JoinQueueRequest | GetLinkedGuestsRequest;
-type VQResource = VQRequest['resource'] | 'getQueues';
+// The virtual queue service answers some requests, such as joining a closed
+// queue, with a client error status and a regular response body.
+function isAnswer(response: JsonResponse): boolean {
+  const { status } = response;
 
-export const sortGuests = (guests: Guest[]): Guest[] =>
-  guests.sort(
-    (a, b) =>
-      +b.primary - +a.primary ||
-      +b.preselected - +a.preselected ||
-      a.name.localeCompare(b.name)
+  return (
+    status > 0 && status < STATUS_SERVER_ERROR && status !== STATUS_UNAUTHORIZED
   );
-
-const path = (resource: VQResource) => `/application/v1/guest/${resource}`;
+}
 
 export class VQClient extends ApiClient {
-  protected static origins = {
+  protected static origins: Record<ResortId, string> = {
     WDW: 'https://vqguest-svc-wdw.wdprapps.disney.com',
     DLR: 'https://vqguest-svc.wdprapps.disney.com',
   };
@@ -131,117 +171,127 @@ export class VQClient extends ApiClient {
     const response = await this.post<GetQueuesResponse>({
       resource: 'getQueues',
     });
-    if (!Array.isArray(response.data?.queues)) throw new RequestError(response);
-    return response.data.queues.flatMap(
-      ({ queueId, tabContentId, ...queue }) => {
-        if (!tabContentId || !queue.categoryContentId) return [];
-        const q: Queue = { ...queue, id: queueId };
-        try {
-          q.park = this.resort.park(tabContentId.split(';')[0]!);
-        } catch (error) {
-          if (!(error instanceof InvalidId)) throw error;
-        }
-        return q;
-      }
-    );
+    const { queues } = response.data ?? {};
+
+    if (!Array.isArray(queues)) {
+      throw new RequestError(response);
+    }
+
+    return queues.flatMap(apiQueue => this.queue(apiQueue) ?? []);
   }
 
   async getQueue(queue: Pick<Queue, 'id'>): Promise<Queue> {
-    const q = (await this.getQueues()).find(q => q.id === queue.id);
-    if (q) return q;
-    throw new Error('Queue not Found');
+    const queues = await this.getQueues();
+    const currentQueue = queues.find(({ id }) => id === queue.id);
+
+    if (!currentQueue) {
+      throw new Error('Queue not found');
+    }
+
+    return currentQueue;
   }
 
   async getLinkedGuests(queue: Pick<Queue, 'id'>): Promise<Guest[]> {
-    const { data } = await this.post<GetLinkedGuestsOKResponse>({
+    const { data } = await this.post<GetLinkedGuestsResponse>({
       resource: 'getLinkedGuests',
-      data: { queueId: queue.id, requestType: 'REVIEW' },
+      data: {
+        queueId: queue.id,
+        requestType: 'REVIEW',
+      },
     });
-    return sortGuests(
-      data.guests.map(
-        ({
-          guestId,
-          firstName = '',
-          lastName = '',
-          isPrimaryGuest,
-          isPreselected,
-          avatarImageUrl,
-        }) => ({
-          id: guestId,
-          name: `${firstName} ${lastName}`.trim(),
-          primary: !!isPrimaryGuest,
-          preselected: !!isPreselected,
-          avatarImageUrl,
-        })
-      )
-    );
+
+    return sortGuests(data.guests.map(toGuest));
   }
 
   async joinQueue(
     queue: Pick<Queue, 'id'>,
     guests: Pick<Guest, 'id'>[]
   ): Promise<JoinQueueResult> {
-    const guestIds = guests.map(g => g.id);
+    const guestIds = guests.map(guest => guest.id);
     const response = await this.post<JoinQueueResponse>({
       resource: 'joinQueue',
-      data: { queueId: queue.id, guestIds },
+      data: {
+        queueId: queue.id,
+        guestIds,
+      },
+      sensorData: true,
     });
     const { data } = response;
-    if (data.responseStatus === 'OK') {
-      const pos = data.positions.find(
-        p =>
-          p.queueId === queue.id &&
-          p.guestIds.length > 0 &&
-          guestIds.some(gid => p.guestIds.includes(gid))
-      );
-      if (!pos) throw new RequestError(response);
-      return {
-        boardingGroup: pos.boardingGroup,
-        conflicts: {},
-        closed: false,
-      };
-    } else if (
-      data.responseStatus === 'INVALID_GUEST' ||
-      data.responseStatus === 'CLOSED_QUEUE'
-    ) {
-      const closed = data.responseStatus === 'CLOSED_QUEUE';
-      const invalidIds = new Set<string>();
-      const conflicts: JoinQueueResult['conflicts'] = {};
-      for (const conflict of data.conflicts) {
-        for (const guestId of conflict.guestIds) {
-          const guest = guests.find(g => g.id === guestId);
-          if (!guest) continue;
-          conflicts[guest.id] = conflict.conflictType;
-          invalidIds.add(guestId);
+
+    switch (data.responseStatus) {
+      case 'OK': {
+        const position = data.positions.find(({ queueId, guestIds: ids }) => {
+          return queueId === queue.id && ids.some(id => guestIds.includes(id));
+        });
+
+        if (!position) {
+          throw new RequestError(response);
         }
+
+        return {
+          boardingGroup: position.boardingGroup,
+          conflicts: {},
+          closed: false,
+        };
       }
-      const validGuests = guests.filter(g => !invalidIds.has(g.id));
-      if (closed || validGuests.length === 0) {
-        return { boardingGroup: null, conflicts, closed };
-      }
-      const result = await this.joinQueue(queue, validGuests);
-      result.conflicts = { ...conflicts, ...result.conflicts };
-      return result;
-    } else {
-      throw new RequestError(response);
+      case 'INVALID_GUEST':
+      case 'CLOSED_QUEUE':
+        return {
+          boardingGroup: null,
+          conflicts: conflictsByGuestId(data.conflicts, guestIds),
+          closed: data.responseStatus === 'CLOSED_QUEUE',
+        };
+      default:
+        throw new RequestError(response);
     }
   }
 
-  protected async post<T>(
-    request: VQRequest
-  ): Promise<{ ok: boolean; status: number; data: T }> {
+  // Returns undefined for a queue that isn't listed in Disney's own app.
+  protected queue(apiQueue: ApiQueue): Queue | undefined {
+    const { queueId, tabContentId, ...fields } = apiQueue;
+
+    if (!tabContentId || !fields.categoryContentId) {
+      return undefined;
+    }
+
+    const queue: Queue = {
+      ...fields,
+      id: queueId,
+    };
+    const [parkId = ''] = tabContentId.split(';');
+
+    try {
+      queue.park = this.resort.park(parkId);
+    } catch (error) {
+      if (!(error instanceof InvalidId)) {
+        throw error;
+      }
+    }
+
+    return queue;
+  }
+
+  protected async post<T>(request: VQRequest): Promise<JsonOK<T>> {
+    const { resource, ...apiRequest } = request;
+
     try {
       return await this.request<T>({
-        ...request,
-        path: path(request.resource),
+        ...apiRequest,
+        path: `/application/v1/guest/${resource}`,
+        headers: {
+          'x-vq-guest-app-version': APP_VERSION,
+        },
       });
-    } catch (e) {
-      if (e instanceof RequestError) {
-        const response = e.response as JsonResponse<T>;
-        const { ok, status } = response;
-        if (!ok && status < 500 && status !== 401) return response;
+    } catch (error) {
+      if (error instanceof RequestError && isAnswer(error.response)) {
+        return {
+          ok: true,
+          status: error.response.status,
+          data: error.response.data as T,
+        };
       }
-      throw e;
+
+      throw error;
     }
   }
 }

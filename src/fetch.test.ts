@@ -27,6 +27,21 @@ const init = {
   signal,
 };
 
+// Returns the arguments of the latest fetch call, with its Headers instance
+// converted to a plain object so that it can be compared.
+function lastFetchCall() {
+  const [requestUrl, requestInit = {}] = jest.mocked(fetch).mock.lastCall ?? [];
+  const headers = new Headers(requestInit.headers);
+
+  return [
+    requestUrl,
+    {
+      ...requestInit,
+      headers: Object.fromEntries(headers.entries()),
+    },
+  ];
+}
+
 describe('fetchJson()', () => {
   beforeEach(() => {
     jest.advanceTimersByTime(10);
@@ -49,25 +64,34 @@ describe('fetchJson()', () => {
   it('uses POST if method not specified and data included', async () => {
     const data = { name: 'Mickey' };
     await fetchJson(url, { data });
-    expect(fetch).toHaveBeenLastCalledWith(url, {
-      method: 'POST',
-      body: JSON.stringify(data),
-      ...init,
-      headers: { ...init.headers, 'Content-Type': 'application/json' },
-    });
+    expect(lastFetchCall()).toEqual([
+      url,
+      {
+        method: 'POST',
+        body: JSON.stringify(data),
+        ...init,
+        headers: {
+          ...init.headers,
+          'content-type': 'application/json',
+        },
+      },
+    ]);
   });
 
   it('adds params to URL', async () => {
     await fetchJson(url, { params: { start: 5, end: 15 } });
-    expect(fetch).toHaveBeenLastCalledWith(url + '?start=5&end=15', {
-      ...init,
-      method: 'GET',
-    });
+    expect(lastFetchCall()).toEqual([
+      `${url}?start=5&end=15`,
+      {
+        ...init,
+        method: 'GET',
+      },
+    ]);
   });
 
   it('returns status=0 response on timeout', async () => {
     jest.spyOn(console, 'error').mockImplementationOnce(() => null);
-    const timeout = 5000;
+    const timeoutMs = 5000;
     jest.mocked(fetch).mockImplementationOnce(((
       url: string,
       init: RequestInit
@@ -79,11 +103,11 @@ describe('fetchJson()', () => {
           } else {
             resolve({ ok: true, status: 200 } as Response);
           }
-        }, timeout);
+        }, timeoutMs);
       });
     }) as typeof fetch);
-    const promise = fetchJson(url, { timeout });
-    jest.advanceTimersByTime(timeout);
+    const promise = fetchJson(url, { timeoutMs });
+    jest.advanceTimersByTime(timeoutMs);
     expect(await promise).toEqual({ ok: false, status: 0, data: null });
   });
 });

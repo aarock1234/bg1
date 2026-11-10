@@ -1,17 +1,13 @@
 const URL_PREFIX =
   'https://cdn1.parksmedia.wdprapps.disney.com/resize/mwImage/1/90/90/75/';
-const URL_DEFAULT =
-  URL_PREFIX + 'dam/wdpro-assets/avatars/180x180/RetAvatar_180x180_';
-const URL_HYPHEN =
-  URL_PREFIX + 'dam/wdpro-assets/avatars/180x180/RetAvatar-180x180-';
-const URL_VIS =
-  URL_PREFIX +
-  'vision-dam/digital/parks-platform/parks-standard-assets/parks/profile/avatar-180x180/RetAvatar_180x180_';
-const URL_50TH =
-  URL_PREFIX +
-  'dam/disney-world/50th-anniversary/avatars/RetAvatar_180x180_50th_';
+const URL_DEFAULT = `${URL_PREFIX}dam/wdpro-assets/avatars/180x180/RetAvatar_180x180_`;
+const URL_HYPHEN = `${URL_PREFIX}dam/wdpro-assets/avatars/180x180/RetAvatar-180x180-`;
+const URL_VIS = `${URL_PREFIX}vision-dam/digital/parks-platform/parks-standard-assets/parks/profile/avatar-180x180/RetAvatar_180x180_`;
+const URL_50TH = `${URL_PREFIX}dam/disney-world/50th-anniversary/avatars/RetAvatar_180x180_50th_`;
 
-export const avatars: { [id: string]: string[] } = {
+// Disney's avatar images by character ID: the image's file name, followed by
+// its URL prefix when that isn't the default one.
+export const avatars: Record<string, [name: string, urlPrefix?: string]> = {
   48199: ['Mr-Incredible'],
   48200: ['Mrs-Incredible'],
   48201: ['Fronzone', URL_VIS],
@@ -106,8 +102,13 @@ export const avatars: { [id: string]: string[] } = {
 };
 
 export function avatarUrl(characterId: string | undefined): string | undefined {
-  const avatarUrlParts = avatars[characterId ?? ''];
-  if (!avatarUrlParts) return;
-  const [name, prefix = URL_DEFAULT] = avatarUrlParts;
-  return `${prefix}${name}.png`;
+  const avatar = avatars[characterId ?? ''];
+
+  if (!avatar) {
+    return undefined;
+  }
+
+  const [name, urlPrefix = URL_DEFAULT] = avatar;
+
+  return `${urlPrefix}${name}.png`;
 }

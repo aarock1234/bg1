@@ -1,8 +1,37 @@
-import { JsonOK, fetchJson } from '@/fetch';
+import { JsonOK, JsonResponse, fetchJson } from '@/fetch';
 import { RateLimit } from '@/ratelimit';
 
 import { authStore } from './auth';
-import { Resort } from './resort';
+import { RESORT_IDS, Resort, ResortId } from './resort';
+import { sensorData } from './sensor-data';
+
+// The version of the official Disney app that BG1 identifies itself as.
+export const APP_VERSION = '8.23.3';
+
+const REQUESTS_PER_SECOND = 5;
+
+const STATUS_NETWORK_FAILURE = 0;
+const STATUS_UNAUTHORIZED = 401;
+const STATUS_FORBIDDEN = 403;
+
+export type ApiRequest = {
+  path: string;
+  method?: 'GET' | 'POST' | 'DELETE';
+  params?: Record<string, string>;
+  data?: unknown;
+  headers?: Record<string, string>;
+  timeoutMs?: number;
+
+  // Keeps the stored login when the request is rejected as unauthorized.
+  ignoreUnauth?: boolean;
+
+  // Sends the bot-protection token that booking endpoints require.
+  sensorData?: boolean;
+};
+
+export type ApiClientOptions = {
+  rateLimit?: RateLimit;
+};
 
 export class InvalidOrigin extends Error {
   name = 'InvalidOrigin';
@@ -12,7 +41,7 @@ export class RequestError extends Error {
   name = 'RequestError';
 
   constructor(
-    public response: Awaited<ReturnType<typeof fetchJson>>,
+    public response: JsonResponse,
     message = 'Request failed'
   ) {
     super(`${message}: ${JSON.stringify(response)}`);
@@ -22,58 +51,81 @@ export class RequestError extends Error {
 export abstract class ApiClient {
   protected resort: Resort;
   protected origin: string;
-  protected rateLimit = new RateLimit(5);
+  protected rateLimit: RateLimit;
 
-  protected static origins = {
+  protected static origins: Record<ResortId, string> = {
     WDW: 'https://disneyworld.disney.go.com',
     DLR: 'https://disneyland.disney.go.com',
   };
 
-  static originToResortId(origin: string): Resort['id'] {
-    const entries = Object.entries(this.origins) as [Resort['id'], string][];
-    const id = entries.find(([, o]) => o === origin)?.[0];
-    if (id) return id;
-    throw new InvalidOrigin(origin);
+  static originToResortId(origin: string): ResortId {
+    const resortId = RESORT_IDS.find(id => this.origins[id] === origin);
+
+    if (!resortId) {
+      throw new InvalidOrigin(origin);
+    }
+
+    return resortId;
   }
 
-  constructor(resort: Resort) {
+  constructor(resort: Resort, options: ApiClientOptions = {}) {
+    const { origins } = this.constructor as typeof ApiClient;
+
     this.resort = resort;
-    this.origin = (this.constructor as typeof ApiClient).origins[
-      this.resort.id
-    ];
+    this.origin = origins[resort.id];
+    this.rateLimit = options.rateLimit ?? new RateLimit(REQUESTS_PER_SECOND);
   }
 
-  protected async request<T = any>(request: {
-    path: string;
-    method?: 'GET' | 'POST' | 'DELETE';
-    params?: { [key: string]: string };
-    data?: unknown;
-    key?: string;
-    timeout?: number;
-    ignoreUnauth?: boolean;
-  }): Promise<JsonOK<T>> {
+  protected async request<T>(request: ApiRequest): Promise<JsonOK<T>> {
     this.rateLimit.enforce();
+
     const { swid, accessToken } = authStore.getData();
-    const url = this.origin + request.path;
-    const res = await fetchJson(url, {
+    const sensorDataHeaders = request.sensorData
+      ? await this.sensorDataHeaders()
+      : {};
+
+    const response = await fetchJson<T>(this.origin + request.path, {
       method: request.method,
       params: request.params,
       data: request.data,
-      timeout: request.timeout,
+      timeoutMs: request.timeoutMs,
       headers: {
         'Accept-Language': 'en-US',
         Authorization: `BEARER ${accessToken}`,
         'x-user-id': swid,
+        ...sensorDataHeaders,
+        ...request.headers,
       },
     });
-    if (res.status === 401 && !request.ignoreUnauth) {
-      setTimeout(() => authStore.deleteData());
-    } else {
-      const { key } = request;
-      if (res.ok && (!key || res.data[key])) {
-        return { ...res, data: key ? res.data[key] : res.data };
-      }
+
+    if (response.ok) {
+      return response;
     }
-    throw new RequestError(res);
+
+    this.handleFailure(request, response.status);
+
+    throw new RequestError(response);
+  }
+
+  protected async sensorDataHeaders(): Promise<Record<string, string>> {
+    return {
+      'x-acf-sensor-data': await sensorData.get(),
+      'x-app-id': `${this.resort.id}-IOS-${APP_VERSION}`,
+    };
+  }
+
+  protected handleFailure(request: ApiRequest, status: number): void {
+    if (status === STATUS_UNAUTHORIZED && !request.ignoreUnauth) {
+      setTimeout(() => authStore.deleteData());
+      return;
+    }
+
+    // Disney answers a rejected sensor token with 403 or drops the connection.
+    const isSensorDataRejected =
+      status === STATUS_FORBIDDEN || status === STATUS_NETWORK_FAILURE;
+
+    if (request.sensorData && isSensorDataRejected) {
+      sensorData.reset();
+    }
   }
 }

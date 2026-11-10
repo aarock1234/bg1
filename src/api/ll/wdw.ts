@@ -9,29 +9,44 @@ import {
   IneligibleReason,
   LLClient,
   LLMP,
+  LLRules,
   Offer,
   OfferError,
   OfferExperience,
   OfferItineraryItem,
+  OfferOptions,
   OrderDetails,
-  replaceTimeStrings,
+  ParkHours,
   throwOnNotModifiable,
+  withParkTimes,
 } from '../ll';
-import { InvalidId, Park } from '../resort';
 
-interface GuestsResponse {
-  guests: ApiGuest[];
-  ineligibleGuests: (ApiGuest & {
-    ineligibleReason: {
-      ineligibleReason: IneligibleReason;
-      isSoftConflict?: boolean;
-      metadata?: { facilityIds: string[] };
+const EXPERIENCES_PATH = '/ea-vas/planning/api/v1/experiences';
+
+// The return time requested when an experience doesn't report its next one.
+const DEFAULT_TARGETED_TIME = '08:00:00';
+
+// Disney fits a new Lightning Lane between existing ones rather than offering
+// the earliest return time. An offer later than expected by more than this is
+// moved back to the expected time.
+const MAX_OFFER_DELAY_SECONDS = 10 * 60;
+
+type WdwIneligibleGuest = Omit<ApiGuest, 'ineligibleReason'> & {
+  ineligibleReason?: {
+    ineligibleReason: IneligibleReason;
+    isSoftConflict?: boolean;
+    metadata?: {
+      facilityIds: string[];
     };
-  })[];
-}
+  };
+};
 
-interface OfferSetItineraryItem {
-  type: 'OFFER_ITEM' | 'EXISTING_ITEM' | 'EVENT_ITEM';
+type WdwGuestsResponse = {
+  guests: ApiGuest[];
+  ineligibleGuests: WdwIneligibleGuest[];
+};
+
+type ItineraryItemBase = {
   facilityId: string;
   startDateTime: string;
   startTime: string;
@@ -41,66 +56,95 @@ interface OfferSetItineraryItem {
     showStartTime: string;
     showEndTime: string;
   };
-}
+};
 
-export interface OfferItem extends OfferSetItineraryItem {
+export type OfferItem = ItineraryItemBase & {
   type: 'OFFER_ITEM';
   offerSetId: string;
   offerId: string;
   offerType: 'FLEX';
   endDateTime: string;
   endTime: string;
-}
+};
 
-interface ExistingItem extends OfferSetItineraryItem {
+type ExistingItem = ItineraryItemBase & {
   type: 'EXISTING_ITEM';
   id: string;
-}
+};
 
-interface EventItem extends OfferSetItineraryItem {
+type EventItem = ItineraryItemBase & {
   type: 'EVENT_ITEM';
   eventType: 'PARK_OPEN' | 'PARK_CLOSE';
-}
+};
 
-interface OfferSetResponse {
+type ItineraryItem = OfferItem | ExistingItem | EventItem;
+
+type OfferSetResponse = {
   itinerary?: {
-    items: (OfferItem | ExistingItem | EventItem)[];
+    items?: ItineraryItem[];
   };
-  offerSetGroup?: {
-    expirySeconds: number;
-    offerSets: {
-      offerSetId: string;
-      offers: {
-        experienceId: string;
-        offerId: string;
-        offerType: 'FLEX';
-      };
-      expiryDateTime: string;
+  party: WdwGuestsResponse;
+};
+
+type TimesResponse = {
+  hourSegmentGroups: {
+    inventorySlotsAvailability: {
+      startTime: string;
     }[];
-  };
-  party: GuestsResponse;
-}
-
-export interface NewBookingResponse {
-  entitlementExperiences: {
-    experienceId: string;
-    startDateTime: string;
-    endDateTime: string;
-    guests: { entitlementId: string; guestId: string }[];
   }[];
-  party: GuestsResponse;
+};
+
+type ChangeTimeResponse = {
+  updatedPlanningOfferDisplayItem: OfferItem;
+};
+
+type BookedExperience = {
+  experienceId: string;
+  startDateTime: string;
+  endDateTime: string;
+  guests: {
+    entitlementId: string;
+    guestId: string;
+  }[];
+};
+
+export type NewBookingResponse = {
+  entitlementExperiences: BookedExperience[];
+  party: WdwGuestsResponse;
+};
+
+export type ModBookingResponse = {
+  booking: BookedExperience;
+  party: WdwGuestsResponse;
+};
+
+type OrderedGuest = Guest & {
+  orderDetails: OrderDetails;
+};
+
+type ParsedItinerary = {
+  offerItem?: OfferItem;
+  itinerary: OfferItineraryItem[];
+  parkHours?: ParkHours;
+};
+
+function isModification(offer: Offer): offer is Offer<LLMP> {
+  return !!offer.booking;
 }
 
-export interface ModBookingResponse {
-  booking: {
-    experienceId: string;
-    startDateTime: string;
-    endDateTime: string;
-    guests: { entitlementId: string; guestId: string }[];
-  };
-  party: GuestsResponse;
+function hasOrderDetails(guest: Guest): guest is OrderedGuest {
+  return !!guest.orderDetails;
 }
 
+// Modifying a booking uses the same endpoints as a new one, under `/mod`.
+function offerSetPath(booking: LLMP | undefined, path: string): string {
+  const modification = booking ? '/mod' : '';
+
+  return `${EXPERIENCES_PATH}${modification}/offerset${path}`;
+}
+
+// The stretch of time around an existing plan during which another Lightning
+// Lane would conflict with it.
 export class Overlap {
   protected startTime;
   protected endTime;
@@ -109,227 +153,190 @@ export class Overlap {
     item: Pick<OfferItineraryItem, 'startTime' | 'endTime' | 'showTimeInfo'>
   ) {
     const startTime = ParkTime.from(item.startTime);
-    this.startTime = startTime.add({ minutes: -40 });
+
+    this.startTime = startTime.add({
+      minutes: -40,
+    });
     this.endTime = item.showTimeInfo
-      ? ParkTime.from(item.showTimeInfo.showEndTime).add({ minutes: -20 })
-      : startTime.add({ minutes: item.endTime ? 40 : 60 });
+      ? ParkTime.from(item.showTimeInfo.showEndTime).add({
+          minutes: -20,
+        })
+      : startTime.add({
+          minutes: item.endTime ? 40 : 60,
+        });
   }
 
-  contains(time: ParkTime) {
+  contains(time: ParkTime): boolean {
     return time > this.startTime && time < this.endTime;
   }
 }
 
 export class LLClientWDW extends LLClient {
-  readonly rules = {
-    book: false,
+  readonly rules: LLRules = {
     maxPartySize: 20,
     parkModify: true,
     prebook: true,
-    timeSelect: false,
+    timeSelect: true,
   };
-  #closedExpIds: { [dateParkId: string]: Experience['id'][] | undefined } = {};
 
-  async experiences(park: Park, date: string): Promise<Experience[]> {
-    const exps = await super.experiences(park, date);
-    return exps;
+  async guests(
+    experience?: Pick<Experience, 'id'>,
+    date?: string
+  ): Promise<Guests> {
+    const park = experience
+      ? this.resort.experience(experience.id).park
+      : this.resort.parks[0];
 
-    if (date > parkDate() || exps.length === 0) {
-      const expIds = new Set(exps.map(exp => exp.id));
-      const dateParkId = date + park.id;
-      if (!this.#closedExpIds[dateParkId]) {
-        const { data } = await this.request<{
-          tiers: {
-            experiences: { facilityId: string; isAvailable?: boolean }[];
-          }[];
-        }>({
-          path: '/ea-vas/planning/api/v1/experiences/availability/bundles/experiences',
-          data: {
-            parkId: park.id,
-            date,
-            guestIds: [await this.primaryGuestId()],
-            existingOfferIds: [],
-            orderId: null,
-          },
-        });
-        this.#closedExpIds[dateParkId] = data.tiers.flatMap(t =>
-          t.experiences.map(exp => exp.facilityId).filter(id => !expIds.has(id))
-        );
-      }
-
-      for (const id of this.#closedExpIds[dateParkId] ?? []) {
-        if (expIds.has(id)) continue;
-        try {
-          exps.push({
-            ...this.resort.experience(id),
-            flex: { available: false },
-            standby: { available: false, unavailableReason: 'CLOSED' },
-          });
-        } catch (error) {
-          if (!(error instanceof InvalidId)) throw error;
-        }
-      }
-    }
-
-    return exps;
-  }
-
-  async guests(experience?: { id: string }, date?: string): Promise<Guests> {
-    const { data } = await this.request<GuestsResponse>({
-      path: '/ea-vas/planning/api/v1/experiences/guest/guests',
+    const { data } = await this.request<WdwGuestsResponse>({
+      path: `${EXPERIENCES_PATH}/guest/guests`,
       data: {
         date: date ?? DateTime.now().date,
         facilityId: experience?.id ?? null,
-        parkId: experience
-          ? this.resort.experience(experience.id).park.id
-          : this.resort.parks[0]!.id,
+        parkId: park?.id,
       },
+      sensorData: true,
     });
-    return this.parseGuestData(data);
+
+    return this.parseWdwGuestData(data);
   }
 
   async offer<B extends Offer['booking']>(
     experience: OfferExperience,
     guests: Guest[],
-    options?: { date: string } | { booking?: B }
+    options: OfferOptions<B> = {}
   ): Promise<Offer<B>> {
-    const today = parkDate();
-    const { date, booking } = { date: today, booking: undefined, ...options };
+    const booking = 'booking' in options ? options.booking : undefined;
+    const date = 'date' in options ? options.date : parkDate();
     throwOnNotModifiable(booking);
-    const { nextAvailableTime } = experience.flex ?? {};
+
+    const expectedTime = experience.flex?.nextAvailableTime;
+    const experienceFields = booking
+      ? {
+          experienceId: experience.id,
+          originalExperienceId: booking.experience.id,
+          originalEntitlementIds: booking.guests.map(guest => {
+            return guest.entitlementId;
+          }),
+        }
+      : {
+          experienceIds: [experience.id],
+        };
+
     const { data } = await this.request<OfferSetResponse>({
-      path: `/ea-vas/planning/api/v1/experiences${booking ? '/mod' : ''}/offerset/generate`,
+      path: offerSetPath(booking, '/generate'),
       data: {
         date: booking ? booking.start.date : date,
         parkId: experience.park.id,
-        guestIds: guests.map(g => g.id),
-        targetedTime: nextAvailableTime ?? '08:00:00',
+        guestIds: guests.map(guest => guest.id),
+        targetedTime: expectedTime ?? DEFAULT_TARGETED_TIME,
         ignoredBookedExperienceIds: null,
-        ...(booking
-          ? {
-              experienceId: experience.id,
-              originalExperienceId: booking.experience.id,
-              originalEntitlementIds: booking.guests.map(g => g.entitlementId),
-            }
-          : {
-              experienceIds: [experience.id],
-            }),
+        ...experienceFields,
       },
+      sensorData: true,
     });
-    const party = this.parseGuestData(data.party);
 
-    let offerItem: OfferItem | undefined;
-    const itinerary: Offer['itinerary'] = [];
-    let openTime: ParkTime | undefined;
-    let closeTime: ParkTime | undefined;
-    for (const item of (data.itinerary ?? {}).items ?? []) {
-      switch (item.type) {
-        case 'EXISTING_ITEM': {
-          const newItem = replaceTimeStrings(item);
-          itinerary.push({ ...newItem, overlap: new Overlap(newItem) });
-          break;
-        }
-        case 'EVENT_ITEM':
-          if (item.eventType === 'PARK_OPEN') {
-            openTime = ParkTime.from(item.startTime);
-          } else if (item.eventType === 'PARK_CLOSE') {
-            closeTime = ParkTime.from(item.startTime);
-          }
-          break;
-        case 'OFFER_ITEM':
-          if (item.facilityId === experience.id) offerItem = item;
-          break;
-      }
+    const party = this.parseWdwGuestData(data.party);
+    const { offerItem, itinerary, parkHours } = this.parseItinerary(
+      data.itinerary?.items ?? [],
+      experience
+    );
+
+    if (!offerItem) {
+      throw new OfferError(party);
     }
 
-    if (!offerItem) throw new OfferError(party);
-    const { offerSetId, offerId, startDateTime, endDateTime } = offerItem;
-    const guestsById = Object.fromEntries(guests.map(g => [g.id, g]));
+    const guestsById = new Map(guests.map(guest => [guest.id, guest]));
     const offer: Offer<B> = {
-      offerSetId,
-      id: offerId,
-      start: DateTime.from(startDateTime),
-      end: DateTime.from(endDateTime),
+      offerSetId: offerItem.offerSetId,
+      id: offerItem.offerId,
+      start: DateTime.from(offerItem.startDateTime),
+      end: DateTime.from(offerItem.endDateTime),
       experience,
       guests: {
-        eligible: party.eligible.map(g => ({ ...guestsById[g.id], ...g })),
+        eligible: party.eligible.map(guest => {
+          return {
+            ...guestsById.get(guest.id),
+            ...guest,
+          };
+        }),
         ineligible: party.ineligible,
       },
       booking: booking as B,
       itinerary,
-      parkHours: openTime && closeTime ? { openTime, closeTime } : undefined,
+      parkHours,
     };
-    // When you already have two LLs booked, the system tries to place your
-    // third LL in between them rather than offering you the earliest available
-    // return time. This is probably not what most people expect or usually
-    // want, so we correct for this behavior by trying to change the offer time
-    // when it's significantly later than expected.
-    if (
-      nextAvailableTime &&
-      offer.start.time !== nextAvailableTime &&
-      +offer.start.time - +nextAvailableTime > 10 * 60
-    ) {
+
+    const isLaterThanExpected =
+      expectedTime !== undefined &&
+      +offer.start.time - +expectedTime > MAX_OFFER_DELAY_SECONDS;
+
+    if (isLaterThanExpected) {
       try {
-        return await this.changeOfferTime(offer, nextAvailableTime);
+        return await this.changeOfferTime(offer, expectedTime);
       } catch (error) {
-        // Keep original offer
+        // The original offer is still good.
         console.error(error);
       }
     }
-    return this.updateLastOffer(offer, nextAvailableTime);
+
+    return this.updateLastOffer(offer, expectedTime);
   }
 
   async times(offer: Offer): Promise<HourlyTimes> {
-    const { data } = await this.request<{
-      hourSegmentGroups: {
-        inventorySlotsAvailability: { startTime: string }[];
-      }[];
-    }>({
-      path: `/ea-vas/planning/api/v1/experiences${offer.booking ? '/mod' : ''}/offerset/times`,
+    const { data } = await this.request<TimesResponse>({
+      path: offerSetPath(offer.booking, '/times'),
       data: {
         experienceId: offer.experience.id,
         parkId: offer.experience.park.id,
         date: offer.start.date,
         offerId: offer.id,
         offerSetIds: [offer.offerSetId],
-        guestIds: offer.guests.eligible.map(g => g.id),
+        guestIds: offer.guests.eligible.map(guest => guest.id),
         offerType: 'FLEX',
         experienceIdsToIgnore: [],
         originalOrderItemId: null,
       },
+      sensorData: true,
     });
-    return data.hourSegmentGroups.map(group =>
-      group.inventorySlotsAvailability.map(s => ParkTime.from(s.startTime))
-    );
+
+    return data.hourSegmentGroups.map(group => {
+      return group.inventorySlotsAvailability.map(slot => {
+        return ParkTime.from(slot.startTime);
+      });
+    });
   }
 
   async changeOfferTime<B extends Offer['booking']>(
     offer: Offer<B>,
     time: ParkTime
   ): Promise<Offer<B>> {
-    const {
-      data: { updatedPlanningOfferDisplayItem: newOffer },
-    } = await this.request<{
-      experienceId: string;
-      offerId: string;
-      offerSetId: string;
-      offerType: 'FLEX';
-      updatedPlanningOfferDisplayItem: OfferItem;
-    }>({
-      path: `/ea-vas/planning/api/v1/experiences${offer.booking ? '/mod' : ''}/offerset/times/fulfill`,
+    const offerSetFields = offer.booking
+      ? {
+          offerSetId: offer.offerSetId,
+        }
+      : {
+          offerSetIds: [offer.offerSetId],
+        };
+
+    const { data } = await this.request<ChangeTimeResponse>({
+      path: offerSetPath(offer.booking, '/times/fulfill'),
       data: {
         parkId: offer.experience.park.id,
         date: offer.start.date,
         offerId: offer.id,
-        ...(offer.booking
-          ? { offerSetId: offer.offerSetId }
-          : { offerSetIds: [offer.offerSetId] }),
+        ...offerSetFields,
         offerType: 'FLEX',
-        guestIds: offer.guests.eligible.map(g => g.id),
-        targetSlot: { startTime: time, endTime: time },
+        guestIds: offer.guests.eligible.map(guest => guest.id),
+        targetSlot: {
+          startTime: time,
+          endTime: time,
+        },
         experienceIdsToIgnore: [],
       },
+      sensorData: true,
     });
+    const newOffer = data.updatedPlanningOfferDisplayItem;
+
     return this.updateLastOffer(
       {
         ...offer,
@@ -346,96 +353,170 @@ export class LLClientWDW extends LLClient {
     offer: Offer<B>,
     guestsToModify?: Pick<Guest, 'id'>[]
   ): Promise<LLMP> {
-    if (offer.booking) {
-      return this.modify(offer as Offer<LLMP>, guestsToModify);
+    if (isModification(offer)) {
+      return this.modify(offer, guestsToModify);
     }
+
     const { data } = await this.request<NewBookingResponse>({
-      path: '/ea-vas/planning/api/v1/experiences/entitlements/book',
+      path: `${EXPERIENCES_PATH}/entitlements/book`,
       data: {
         offerSetId: offer.offerSetId,
         orderGuestDetails: offer.guests.eligible
-          .filter(
-            (g): g is Guest & { orderDetails: OrderDetails } => !!g.orderDetails
-          )
-          .map(({ id, orderDetails: { externalIdentifier, ...ids } }) => ({
-            guestDetails: [{ guestId: id, externalIdentifier }],
-            ...ids,
-          })),
+          .filter(hasOrderDetails)
+          .map(guest => {
+            const { externalIdentifier, ...orderIds } = guest.orderDetails;
+
+            return {
+              guestDetails: [
+                {
+                  guestId: guest.id,
+                  externalIdentifier,
+                },
+              ],
+              ...orderIds,
+            };
+          }),
       },
+      sensorData: true,
     });
-    return this.createLLFromResponse(offer.experience, data);
+
+    return this.lightningLane(offer.experience, data);
   }
 
   protected async modify(
     offer: Offer<LLMP>,
-    guestsToModify?: Pick<Guest, 'id'>[]
+    guestsToModify: Pick<Guest, 'id'>[] = offer.guests.eligible
   ): Promise<LLMP> {
-    const {
-      offerSetId,
-      guests: { eligible },
-    } = offer;
-    const guestIdsToModify = new Set(
-      (guestsToModify ?? offer.guests.eligible).map(g => g.id)
+    const guestIdsToModify = new Set(guestsToModify.map(guest => guest.id));
+    const entitlementIdsByGuestId = new Map(
+      offer.booking.guests.map(guest => [guest.id, guest.entitlementId])
     );
-    const entIdsByGuestId = Object.fromEntries(
-      offer.booking.guests.map(g => [g.id, g.entitlementId])
-    );
+
     const { data } = await this.request<ModBookingResponse>({
-      path: '/ea-vas/planning/api/v1/experiences/mod/entitlements/book',
+      path: `${EXPERIENCES_PATH}/mod/entitlements/book`,
       data: {
-        offerSetId,
-        eligibleGuestsEntitlements: eligible
-          .filter(g => guestIdsToModify.has(g.id))
-          .map(g => ({
-            guestId: g.id,
-            entitlementId: entIdsByGuestId[g.id],
-            ...g.orderDetails,
-          })),
+        offerSetId: offer.offerSetId,
+        eligibleGuestsEntitlements: offer.guests.eligible
+          .filter(guest => guestIdsToModify.has(guest.id))
+          .map(guest => {
+            return {
+              guestId: guest.id,
+              entitlementId: entitlementIdsByGuestId.get(guest.id),
+              ...guest.orderDetails,
+            };
+          }),
       },
+      sensorData: true,
     });
-    return this.createLLFromResponse(offer.experience, {
+
+    return this.lightningLane(offer.experience, {
       entitlementExperiences: [data.booking],
       party: data.party,
     });
   }
 
-  protected createLLFromResponse(
+  // Sorts an offer response's itinerary into the offer itself, the guest's
+  // existing plans, and the park's hours.
+  protected parseItinerary(
+    items: ItineraryItem[],
+    experience: OfferExperience
+  ): ParsedItinerary {
+    const parsed: ParsedItinerary = {
+      itinerary: [],
+    };
+    let openTime: ParkTime | undefined;
+    let closeTime: ParkTime | undefined;
+
+    for (const item of items) {
+      switch (item.type) {
+        case 'OFFER_ITEM':
+          if (item.facilityId === experience.id) {
+            parsed.offerItem = item;
+          }
+          break;
+        case 'EXISTING_ITEM': {
+          const existingPlan = withParkTimes(item);
+
+          parsed.itinerary.push({
+            ...existingPlan,
+            overlap: new Overlap(existingPlan),
+          });
+          break;
+        }
+        case 'EVENT_ITEM':
+          if (item.eventType === 'PARK_OPEN') {
+            openTime = ParkTime.from(item.startTime);
+          } else if (item.eventType === 'PARK_CLOSE') {
+            closeTime = ParkTime.from(item.startTime);
+          }
+          break;
+      }
+    }
+
+    if (openTime && closeTime) {
+      parsed.parkHours = {
+        openTime,
+        closeTime,
+      };
+    }
+
+    return parsed;
+  }
+
+  protected lightningLane(
     experience: OfferExperience,
     response: NewBookingResponse
   ): LLMP {
-    const booking = response.entitlementExperiences[0]!;
-    const entIdsByGuestId = Object.fromEntries(
-      booking.guests.map(g => [g.guestId, g.entitlementId])
+    const [booked] = response.entitlementExperiences;
+    const [firstBookedGuest] = booked?.guests ?? [];
+
+    if (!booked || !firstBookedGuest) {
+      throw new Error('booking response has no entitlements');
+    }
+
+    const entitlementIdsByGuestId = new Map(
+      booked.guests.map(guest => [guest.guestId, guest.entitlementId])
     );
-    const { id, name, land, park } = experience;
+    const guests: LLMP['guests'] = [];
+
+    for (const apiGuest of response.party.guests) {
+      const entitlementId = entitlementIdsByGuestId.get(apiGuest.id);
+
+      if (entitlementId) {
+        guests.push({
+          ...this.guest(apiGuest),
+          entitlementId,
+        });
+      }
+    }
+
     return {
-      facilityId: id,
-      name,
-      experience,
-      land,
-      park,
       type: 'LL',
       subtype: 'MP',
-      id: booking.guests[0]!.entitlementId,
-      start: DateTime.from(booking.startDateTime),
-      end: DateTime.from(booking.endDateTime),
+      id: firstBookedGuest.entitlementId,
+      facilityId: experience.id,
+      name: experience.name,
+      experience,
+      land: experience.land,
+      park: experience.park,
+      start: DateTime.from(booked.startDateTime),
+      end: DateTime.from(booked.endDateTime),
       cancellable: true,
       modifiable: true,
-      guests: response.party.guests.map(g => ({
-        ...this.convertGuest(g),
-        entitlementId: entIdsByGuestId[g.id]!,
-      })),
+      guests,
     };
   }
 
-  protected parseGuestData({ guests, ineligibleGuests }: GuestsResponse) {
-    return super.parseGuestData({
-      guests,
-      ineligibleGuests: ineligibleGuests.map(g =>
-        g.ineligibleReason
-          ? { ...g, ineligibleReason: g.ineligibleReason.ineligibleReason }
-          : g
-      ),
+  // Walt Disney World nests each ineligible guest's reason inside an object.
+  protected parseWdwGuestData(data: WdwGuestsResponse): Guests {
+    return this.parseGuestData({
+      guests: data.guests,
+      ineligibleGuests: data.ineligibleGuests.map(guest => {
+        return {
+          ...guest,
+          ineligibleReason: guest.ineligibleReason?.ineligibleReason,
+        };
+      }),
     });
   }
 }

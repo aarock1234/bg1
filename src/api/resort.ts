@@ -1,5 +1,70 @@
 import { ParkTime } from '@/datetime';
 
+export const RESORT_IDS = ['WDW', 'DLR'] as const;
+
+export type ResortId = (typeof RESORT_IDS)[number];
+
+export type ExperienceType = 'A' | 'E' | 'C' | 'H' | 'P';
+
+type GeoBounds = {
+  n: number;
+  s: number;
+  e: number;
+  w: number;
+};
+
+export type Park = {
+  id: string;
+  name: string;
+  icon: string;
+  geo: GeoBounds;
+  color: string;
+  theme: Theme;
+  dropTimes: ParkTime[];
+};
+
+export type Land = {
+  name: string;
+  sort: number;
+  color: string;
+  theme: Theme;
+  park: Park;
+};
+
+export type Experience = {
+  id: string;
+  name: string;
+  land: Land;
+  park: Park;
+  geo?: readonly [number, number];
+  type: ExperienceType;
+  avgWait?: number;
+  tier?: number;
+  priority?: number;
+  dropTimes?: ParkTime[];
+  highlight?: boolean;
+};
+
+type ParkData = Omit<Park, 'dropTimes' | 'theme'>;
+
+type LandData = Omit<Land, 'park' | 'theme'> & {
+  park: ParkData;
+};
+
+export type ExperienceData = Omit<
+  Experience,
+  'id' | 'land' | 'park' | 'dropTimes'
+> & {
+  land: LandData;
+  dropTimes?: string[];
+};
+
+// A null entry marks an experience BG1 knows about but deliberately ignores.
+export type ResortData = {
+  parks: ParkData[];
+  experiences: Record<string | number, ExperienceData | null | undefined>;
+};
+
 export class Theme {
   readonly color;
   readonly bg;
@@ -12,57 +77,6 @@ export class Theme {
   }
 }
 
-export interface Park {
-  id: string;
-  name: string;
-  icon: string;
-  geo: { n: number; s: number; e: number; w: number };
-  color: string;
-  theme: Theme;
-  dropTimes: ParkTime[];
-}
-
-export interface Land {
-  name: string;
-  sort: number;
-  color: string;
-  theme: Theme;
-  park: Park;
-}
-
-export type ExperienceType = 'A' | 'E' | 'C' | 'H' | 'P';
-
-export interface Experience {
-  id: string;
-  name: string;
-  land: Land;
-  park: Park;
-  geo?: readonly [number, number];
-  type: ExperienceType;
-  avgWait?: number;
-  tier?: number;
-  priority?: number;
-  dropTimes?: ParkTime[];
-  highlight?: boolean;
-}
-
-type ParkData = Omit<Park, 'dropTimes' | 'theme'>;
-type LandData = Omit<Land, 'park' | 'theme'> & { park: ParkData };
-export type ExperienceData = Omit<
-  Experience,
-  'id' | 'land' | 'park' | 'dropTimes'
-> & {
-  land: LandData;
-  dropTimes?: string[];
-};
-
-export interface ResortData {
-  parks: ParkData[];
-  experiences: {
-    [id: string | number]: ExperienceData | null | undefined;
-  };
-}
-
 export class InvalidId extends Error {
   name = 'InvalidId';
 
@@ -71,66 +85,134 @@ export class InvalidId extends Error {
   }
 }
 
+function uniqueSortedTimes(times: ParkTime[]): ParkTime[] {
+  const timesByValue = new Map(times.map(time => [+time, time]));
+
+  return [...timesByValue.values()].sort((a, b) => +a - +b);
+}
+
+// A resort's parks, lands, and experiences. The data objects passed in are
+// completed in place (themes, parks, parsed times) rather than copied, so each
+// park and land stays a single shared object that can be compared by identity.
 export class Resort {
-  readonly id: 'WDW' | 'DLR';
+  readonly id: ResortId;
   readonly parks: Park[];
-  protected parksById: { [id: string]: Park | undefined };
-  protected expsById: { [id: string]: Experience | null | undefined };
-  protected dropExpsByPark: Map<Park, Experience[]>;
+  protected parksById = new Map<string, Park>();
+  protected landsByData = new Map<LandData, Land>();
+  protected experiencesById = new Map<string, Experience | null>();
+  protected dropExperiencesByPark = new Map<Park, Experience[]>();
 
-  constructor(id: Resort['id'], data: ResortData) {
+  constructor(id: ResortId, data: ResortData) {
     this.id = id;
-    this.parks = data.parks as Park[];
-    this.parksById = Object.fromEntries(this.parks.map(p => [p.id, p]));
-    this.expsById = data.experiences as Resort['expsById'];
-    this.dropExpsByPark = new Map(this.parks.map(p => [p, [] as Experience[]]));
-    for (const [id, expData] of Object.entries(data.experiences)) {
-      if (!expData) continue;
-      const exp = expData as Experience;
-      exp.id = id;
-      exp.park = exp.land.park;
-      if (!exp.land.theme) exp.land.theme = new Theme(exp.land.color);
-      if (expData.dropTimes) {
-        exp.dropTimes = expData.dropTimes.map(ParkTime.from);
-        this.dropExpsByPark.get(exp.land.park)?.push(exp);
+    this.parks = data.parks.map(parkData => this.completePark(parkData));
+
+    for (const [experienceId, experienceData] of Object.entries(
+      data.experiences
+    )) {
+      if (experienceData === undefined) {
+        continue;
       }
+
+      this.experiencesById.set(
+        experienceId,
+        experienceData && this.completeExperience(experienceId, experienceData)
+      );
     }
+
     for (const park of this.parks) {
-      park.theme = new Theme(park.color);
-      park.dropTimes = [
-        ...new Map(
-          this.dropExpsByPark
-            .get(park)
-            ?.flatMap(exp => (exp.dropTimes ?? []).map(t => [+t, t]))
-        ),
-      ]
-        .map(t => t[1])
-        .sort();
-      this.dropExpsByPark
-        .get(park)
-        ?.sort((a, b) => a.name.localeCompare(b.name));
+      this.collectDropTimes(park);
     }
   }
 
-  experience(id: string) {
-    const exp = this.expsById[id];
-    if (exp) return exp;
-    if (exp !== null) console.warn(`Missing experience: ${id}`);
+  experience(id: string): Experience {
+    const experience = this.experiencesById.get(id);
+
+    if (experience) {
+      return experience;
+    }
+
+    if (experience === undefined) {
+      console.warn(`missing experience: ${id}`);
+    }
+
     throw new InvalidId(id);
   }
 
-  park(id: string) {
-    const park = this.parksById[id];
-    if (park) return park;
-    throw new InvalidId(id);
+  park(id: string): Park {
+    const park = this.parksById.get(id);
+
+    if (!park) {
+      throw new InvalidId(id);
+    }
+
+    return park;
   }
 
-  dropExperiences(park: Park) {
-    return this.dropExpsByPark.get(park) ?? [];
+  // Returns the park's experiences that release extra availability at set
+  // times, sorted by name.
+  dropExperiences(park: Park): Experience[] {
+    return this.dropExperiencesByPark.get(park) ?? [];
+  }
+
+  protected completePark(data: ParkData): Park {
+    const park = Object.assign(data, {
+      theme: new Theme(data.color),
+      dropTimes: [],
+    });
+
+    this.parksById.set(park.id, park);
+    this.dropExperiencesByPark.set(park, []);
+
+    return park;
+  }
+
+  protected completeLand(data: LandData): Land {
+    const existingLand = this.landsByData.get(data);
+
+    if (existingLand) {
+      return existingLand;
+    }
+
+    const land = Object.assign(data, {
+      theme: new Theme(data.color),
+      park: this.park(data.park.id),
+    });
+
+    this.landsByData.set(data, land);
+
+    return land;
+  }
+
+  protected completeExperience(id: string, data: ExperienceData): Experience {
+    const land = this.completeLand(data.land);
+
+    const experience = Object.assign(data, {
+      id,
+      land,
+      park: land.park,
+      dropTimes: data.dropTimes?.map(ParkTime.from),
+    });
+
+    if (experience.dropTimes) {
+      this.dropExperiencesByPark.get(land.park)?.push(experience);
+    }
+
+    return experience;
+  }
+
+  protected collectDropTimes(park: Park): void {
+    const dropExperiences = this.dropExperiences(park);
+
+    dropExperiences.sort((a, b) => a.name.localeCompare(b.name));
+
+    park.dropTimes = uniqueSortedTimes(
+      dropExperiences.flatMap(experience => experience.dropTimes ?? [])
+    );
   }
 }
 
-export async function loadResort(id: Resort['id']): Promise<Resort> {
+export async function loadResort(id: ResortId): Promise<Resort> {
   const data: ResortData = await import(`./data/${id.toLowerCase()}.ts`);
+
   return new Resort(id, data);
 }

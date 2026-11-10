@@ -51,7 +51,11 @@ What changed that day:
   past Disney's bot protection.
 - The booking screen points to the Disney app when Disney refuses an offer,
   and the panel says "watch" rather than "book". Disney publishes no link
-  into either app's Lightning Lane screens, so the link is the store page.
+  into either app. On an iPhone, Open the Disneyland app follows the scheme
+  the app registers for itself (`cs-com.disney.DLR://`, seen in Abdel's
+  capture), which launches it at its home screen; on Android, Chrome opens
+  the app by package. My Disney Experience on iPhone still goes to the App
+  Store. Unverified on a phone (`3139636`).
 
 ## What was done, and what is still unverified
 

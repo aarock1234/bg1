@@ -74,10 +74,17 @@ function forwardedHeaders(incoming: Headers): Headers {
   return headers;
 }
 
+export type RelayOptions = {
+  // Sends the relayed requests, such as through a proxy. Defaults to the
+  // global fetch, which sends them straight from this server.
+  fetch?: typeof fetch;
+};
+
 // Passes requests from the app on BG1's own site on to Disney and returns
 // Disney's answers. Browsers won't let that page call Disney directly.
-export function createRelay(): Hono {
+export function createRelay(options: RelayOptions = {}): Hono {
   const relay = new Hono();
+  const send = options.fetch ?? fetch;
 
   relay.all('/:host/*', async context => {
     const host = context.req.param('host');
@@ -107,7 +114,7 @@ export function createRelay(): Hono {
     try {
       // A redirect is passed back as it is instead of being followed, which
       // could take the request to a host outside the list.
-      const response = await fetch(target, {
+      const response = await send(target, {
         method,
         headers: forwardedHeaders(context.req.raw.headers),
         body: METHODS_WITHOUT_BODY.has(method)

@@ -55,7 +55,12 @@ What changed that day:
   the app registers for itself (`cs-com.disney.DLR://`, seen in Abdel's
   capture), which launches it at its home screen; on Android, Chrome opens
   the app by package. My Disney Experience on iPhone still goes to the App
-  Store. Unverified on a phone (`3139636`).
+  Store. Unverified on a phone (`3139636`). Neither Disney nor the capture
+  shows a link to a single ride inside the app, so it opens at its home.
+- Watches check the tip board every second, and by default keep their window
+  moving: the wait from the start to the chosen latest time is kept as time
+  passes, so a 4:30 time found at 4:00 counts for a watch started at 3:50
+  until 4:20 (`82a0c49`).
 
 ## What was done, and what is still unverified
 

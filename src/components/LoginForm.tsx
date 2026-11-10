@@ -1,8 +1,10 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 import { AuthData } from '@/api/auth';
 import { Resort } from '@/api/resort';
 import { siteUrl } from '@/config';
+
+import TryAgain from './TryAgain';
 
 const SCRIPT_URL = 'https://cdn.registerdisney.go.com/v4/OneID.js';
 const SCRIPT_ID = 'oneid-script';
@@ -90,9 +92,20 @@ async function launchLogin(
 }
 
 function loadSession(resortId: string): Promise<OneIdSession> {
-  sessionPromise ??= createSession(resortId);
+  if (sessionPromise) {
+    return sessionPromise;
+  }
 
-  return sessionPromise;
+  const session = createSession(resortId);
+
+  // A session that couldn't be created is forgotten, so the next attempt
+  // starts over instead of waiting on the same failure.
+  session.catch(() => {
+    sessionPromise = undefined;
+  });
+  sessionPromise = session;
+
+  return session;
 }
 
 async function createSession(resortId: string): Promise<OneIdSession> {
@@ -124,9 +137,15 @@ function loadOneIdScript(): Promise<void> {
   script.src = SCRIPT_URL;
   document.head.append(script);
 
-  return new Promise(resolve => {
+  return new Promise((resolve, reject) => {
     script.addEventListener('load', () => {
       resolve();
+    });
+
+    // The failed element is removed so that another attempt can add its own.
+    script.addEventListener('error', () => {
+      script.remove();
+      reject(new Error('OneID script failed to load'));
     });
   });
 }
@@ -142,13 +161,28 @@ type LoginFormProps = {
 };
 
 // Shows Disney's own login form on top of the page. It renders nothing
-// itself.
+// itself unless the form couldn't be loaded.
 export default function LoginForm({ resort, onLogin }: LoginFormProps) {
+  // Loading the form is tried again each time this number changes.
+  const [attempt, setAttempt] = useState(1);
+  const [hasFailed, setHasFailed] = useState(false);
+
   useEffect(() => {
+    let isStale = false;
+
+    setHasFailed(false);
     launchLogin(resort.id, onLogin).catch(error => {
       console.error(error);
+
+      if (!isStale) {
+        setHasFailed(true);
+      }
     });
-  }, [resort, onLogin]);
+
+    return () => {
+      isStale = true;
+    };
+  }, [resort, onLogin, attempt]);
 
   useEffect(() => {
     return () => {
@@ -156,5 +190,14 @@ export default function LoginForm({ resort, onLogin }: LoginFormProps) {
     };
   }, []);
 
-  return null;
+  if (!hasFailed) {
+    return null;
+  }
+
+  return (
+    <TryAgain
+      title="Couldn't Load Disney's Login"
+      onRetry={() => setAttempt(current => current + 1)}
+    />
+  );
 }

@@ -470,7 +470,7 @@ function TimeSelection({
     <>
       {allowsFullAvailability(offer) && (
         <div className="mt-6 flex items-center justify-between gap-3">
-          <h3 className="mt-0">Availabile Times</h3>
+          <h3 className="mt-0">Available Times</h3>
           <label className="flex min-h-11 items-center gap-2.5 text-[15px]">
             <input
               type="checkbox"

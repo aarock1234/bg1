@@ -20,6 +20,7 @@ import onVisible from '@/onVisible';
 import { WEB_ROUTE, WebRoute } from '@/web-route';
 
 import LoginForm from './LoginForm';
+import TryAgain from './TryAgain';
 import Merlock from './ll/Merlock';
 import BGClient from './vq/BGClient';
 
@@ -126,6 +127,10 @@ function Startup({ children }: StartupProps) {
 
 export default function App() {
   const [app, setApp] = useState<LoadedApp>();
+
+  // Starting is tried again each time this number changes.
+  const [startAttempt, setStartAttempt] = useState(1);
+  const [hasStartFailed, setHasStartFailed] = useState(false);
   const [isLoginRequired, setIsLoginRequired] = useState(isReauthNeeded);
   const disclaimer = useDisclaimer();
   const news = useNews(NEWS_VERSION);
@@ -150,6 +155,8 @@ export default function App() {
     let isStale = false;
 
     async function startApp() {
+      setHasStartFailed(false);
+
       const loadedApp = await loadApp();
 
       if (isStale) {
@@ -167,12 +174,16 @@ export default function App() {
 
     startApp().catch(error => {
       console.error(error);
+
+      if (!isStale) {
+        setHasStartFailed(true);
+      }
     });
 
     return () => {
       isStale = true;
     };
-  }, []);
+  }, [startAttempt]);
 
   useEffect(() => {
     function checkAuth() {
@@ -203,6 +214,17 @@ export default function App() {
 
   if (news) {
     return news;
+  }
+
+  if (!app && hasStartFailed) {
+    return (
+      <Startup>
+        <TryAgain
+          title="BG1 Couldn't Start"
+          onRetry={() => setStartAttempt(attempt => attempt + 1)}
+        />
+      </Startup>
+    );
   }
 
   if (!app) {

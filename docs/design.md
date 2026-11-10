@@ -1,10 +1,11 @@
 # BG1 app design guide
 
-This is the working guide for restyling BG1's screens. The foundation is done:
-the tokens, the base styles, the shared components, and two finished screens to
-copy from (the Lightning Lane home in `src/components/ll/screens/Home*` and the
-booking screen in `src/components/ll/screens/BookExperience*`). Read those two
-before you start; this guide explains what you will see there.
+This is the guide to how BG1's screens are designed and built: the tokens, the
+base styles, the shared components, and the patterns every screen follows. The
+two screens to read first are the Lightning Lane home in
+`src/components/ll/screens/Home*` and the booking screen in
+`src/components/ll/screens/BookExperience*`; this guide explains what you will
+see there.
 
 ## The look in one paragraph
 
@@ -42,14 +43,10 @@ and 600 (`font-semibold`) for emphasis. Headings get tight tracking
 automatically. `<time>` elements use tabular digits automatically; add
 `tabular-nums` to any other number that changes or lines up in a column.
 
-**The old park colors are gone.** `Theme` and `ThemeContext` still hand out
-`bg-<color>` and `text-<color>-d` class names, and those classes still exist,
-but they now resolve to `surface` and `ink`. A component that still uses
-`theme.bg` paints a plain surface. When you restyle a component, remove its
-use of `theme.bg`, `theme.text`, `theme.color`, and the `themed` icon prop,
-together with Tailwind's own palette (`bg-white`, `text-black`,
-`text-gray-500`, `bg-yellow-100`, `text-red-d`, and so on). After your pass,
-your files should only use the tokens above.
+**There are no park colors.** Screens are not themed by park, and nothing
+hands out color class names. Use only the tokens above, never Tailwind's own
+palette (`bg-white`, `text-black`, `text-gray-500`, `bg-yellow-100`, and so
+on).
 
 ## What the stylesheet already does for you
 
@@ -66,8 +63,9 @@ You don't need to add any of this to a screen:
 - `h2`, `h3`, `p`, `a`, and `b` have sensible defaults. Override margins with
   utilities (`mt-0`, `mb-0`) where a heading sits inside a card or a row.
 
-`src/bg1.tsx` sets the viewport (`viewport-fit=cover`), the theme color, and
-the document title, because the userscript leaves an empty document.
+The viewport (`viewport-fit=cover`), the theme color, and the document title
+are set by `site/app.html` on BG1's own site. `src/bg1.tsx` sets them again
+for the userscript, which starts from an empty document on Disney's pages.
 
 ## Building blocks
 
@@ -94,7 +92,6 @@ all of them.
 - `subhead` stays in view under the title. Use it for a toolbar of selects or
   one line of context, such as the date. It is muted and small by default.
 - `footer` is pinned to the bottom, above the safe area.
-- `theme` is still accepted and passed to `ThemeContext`, but paints nothing.
 - The body has 16px gutters, scrolls on its own, and fades in when the screen
   appears. The Back button is added automatically on every screen but the
   first.
@@ -120,8 +117,6 @@ bar: give it elements with the `tab` class, as
 - `type` is the size: `normal` (40px tall), `small` (32px; for a button inside
   a row), `full` (48px tall, full width).
 - Every size has a tap target of at least 44px, whatever it looks like.
-- `color` and `border` are still accepted and ignored. Remove them from your
-  callers.
 
 ### FloatingButton
 
@@ -144,7 +139,7 @@ the default way to show a set of anything.
 <ul className="list">
   <li className="row">
     <span className="row-title">Mickey Mouse</span>
-    <span className="row-detail">Detail</span>
+    <span className="text-sm text-muted">Detail</span>
   </li>
   <li>
     <button className="row" onClick={open}>
@@ -159,14 +154,13 @@ the default way to show a set of anything.
 - `row` is a 52px-tall flex row with 14px side padding. Put it on the `li`, or
   on a `button`, `a`, or `label` inside the `li` when the whole row is
   tappable; those get a pressed background.
-- `row-title` takes the free space; `row-detail` is small and muted.
+- `row-title` takes the free space. Make a detail beside it small and muted
+  (`text-sm text-muted`).
 - A row with more than one line doesn't need `row`: give the `li` padding
   (`px-3.5 py-3`) and lay it out yourself, as `ExperienceItem` in
   `MultiPassList.tsx` does.
 - For a table inside a list, wrap the table: `<div className="list"><table
 className="w-full">…`, and put `border-t border-line` on the rows.
-- `dividers` (hairlines between `li`s without a container) still exists for
-  old markup. Prefer `list`.
 
 ### Section title, card, note
 
@@ -265,11 +259,9 @@ line under an experience's name.
 `src/icons/*` are outline icons on a 24px grid, drawn in the current text
 color. The default size is 18px; set another with a width class
 (`className="w-5"`). `filled` fills the shape, for the "on" state of a toggle
-(a favorite's star). `themed` used to paint an icon in the park's color and
-now just draws it in `ink`; stop passing it. New icons: `AlertIcon`,
-`InfoIcon`, `ChevronDownIcon`.
+(a favorite's star).
 
-## Patterns from the two finished screens
+## Patterns every screen follows
 
 ### How a screen is laid out
 
@@ -348,8 +340,8 @@ A section heading with an action is a flex row:
 
 ## The preview
 
-The real app only runs inside Disney's pages. The preview renders the real
-screens with fake clients in any browser. It is development-only: it lives in
+The real app needs a Disney login and talks to Disney. The preview renders
+the real screens with fake clients in any browser. It is development-only: it lives in
 `src/preview/` and `src/preview.html`, is not a build input, and its class
 names are excluded from the stylesheet (so inside `src/preview/` only use
 classes the app already uses, or inline styles).
@@ -431,9 +423,8 @@ Do:
 
 Don't:
 
-- Don't use `theme.bg`, `theme.text`, `theme.color`, `themed`, or Tailwind's
-  color palette. No `bg-white` blocks, no yellow alerts, no park-colored
-  headings.
+- Don't use Tailwind's color palette. No `bg-white` blocks, no yellow alerts,
+  no park-colored headings.
 - Don't add gradients, shadows, or new colors. If a state seems to need a
   color, try weight, an icon, or a badge first.
 - Don't use `uppercase` for headings or labels. Sentence case, muted, small.

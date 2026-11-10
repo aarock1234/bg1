@@ -66,10 +66,10 @@
     "checkall": "pnpm test && pnpm lint && pnpm format:check && pnpm typecheck",
     "test": "TZ=UTC jest",
     "coverage": "TZ=UTC jest --coverage --coverageDirectory=.coverage",
-    "lint": "eslint src server drizzle.config.ts",
-    "lint:fix": "eslint --fix src server drizzle.config.ts",
-    "format": "prettier --write src server drizzle.config.ts \"!server/db/migrations\"",
-    "format:check": "prettier --check src server drizzle.config.ts \"!server/db/migrations\"",
+    "lint": "eslint src server site drizzle.config.ts vite.config.mts eslint.config.mjs jest.config.js",
+    "lint:fix": "eslint --fix src server site drizzle.config.ts vite.config.mts eslint.config.mjs jest.config.js",
+    "format": "prettier --write src server site docs plans \"*.{ts,mts,mjs,js,md}\" \"!server/db/migrations\"",
+    "format:check": "prettier --check src server site docs plans \"*.{ts,mts,mjs,js,md}\" \"!server/db/migrations\"",
     "typecheck": "tsc --noEmit"
   },
   "browserslist": [

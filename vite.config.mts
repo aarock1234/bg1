@@ -5,8 +5,12 @@ import { defineConfig } from 'vite';
 
 const sourceDirectory = path.join(import.meta.dirname, 'src');
 
-// The dev server uses HTTPS and allows any origin because BG1 is loaded into
-// Disney's pages, which are served over HTTPS from another origin.
+// The files the build starts from, inside the source directory.
+const BUILD_INPUTS = ['bg1.tsx', 'bg1.css', 'home.tsx', 'responder.html'];
+
+// The dev server uses HTTPS and allows any origin because the userscript
+// loads BG1 into Disney's pages, which are served over HTTPS from another
+// origin.
 const server = {
   host: '0.0.0.0',
   port: 3000,
@@ -31,12 +35,7 @@ export default defineConfig({
     outDir: '../dist',
     emptyOutDir: false,
     rolldownOptions: {
-      input: [
-        'src/bg1.tsx',
-        'src/bg1.css',
-        'src/home.tsx',
-        'src/responder.html',
-      ],
+      input: BUILD_INPUTS.map(file => path.join(sourceDirectory, file)),
 
       // The autoloader and Disney's login page request these files by name,
       // so they can't carry content hashes.

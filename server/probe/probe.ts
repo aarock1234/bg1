@@ -1,9 +1,9 @@
 import { z } from 'zod';
 
 import { RequestError } from '@/api/client';
-import { RESORT_IDS, RESORT_TIME_ZONES } from '@/api/resort';
+import { RESORT_IDS } from '@/api/resort';
 import { sensorData } from '@/api/sensor-data';
-import { DateTime, parkDate } from '@/datetime';
+import { parkDate } from '@/datetime';
 
 import { accessTokenClaims } from '../disney/access-token';
 import { llClientFor, resortFor } from '../disney/clients';
@@ -12,8 +12,9 @@ import {
   disneyLoginSchema,
   loginAuth,
 } from '../disney/credentials';
-import { proxiedFetch } from '../disney/proxies';
+import { type ProxiedFetch, proxiedFetch } from '../disney/proxies';
 import { LoginRefreshFailed, refreshLogin } from '../disney/refresh';
+import { resortNow } from '../jobs/window';
 
 const MS_PER_MINUTE = 60_000;
 const MS_PER_SECOND = 1000;
@@ -150,14 +151,18 @@ async function disneyChecks(
     throw new Error(`resort ${resortId} has no parks`);
   }
 
+  // The date is worked out for this resort instead of read from the time
+  // zone DateTime is set to, which the whole server shares.
+  const today = parkDate(resortNow(resortId));
+
   return [
     await runCheck(`plain disney request, ${route.name}`, async () => {
-      const experiences = await ll.experiences(park, parkDate());
+      const experiences = await ll.experiences(park, today);
 
       return `${experiences.length} experiences in ${park.name}`;
     }),
     await runCheck(`protected disney request, ${route.name}`, async () => {
-      const guests = await ll.guests();
+      const guests = await ll.guests(undefined, today);
 
       return `${guests.eligible.length} eligible and ${guests.ineligible.length} ineligible guests`;
     }),
@@ -185,18 +190,30 @@ export async function probe(
   request: ProbeRequest,
   options: ProbeOptions
 ): Promise<ProbeReport> {
-  DateTime.setTimeZone(RESORT_TIME_ZONES[request.resortId]);
+  const proxy =
+    options.proxyUrls.length > 0 ? proxiedFetch(options.proxyUrls) : undefined;
 
+  try {
+    return await runProbe(request, proxy);
+  } finally {
+    await proxy?.close();
+  }
+}
+
+async function runProbe(
+  request: ProbeRequest,
+  proxy: ProxiedFetch | undefined
+): Promise<ProbeReport> {
   const routes: Route[] = [
     {
       name: 'direct',
     },
   ];
 
-  if (options.proxyUrls.length > 0) {
+  if (proxy) {
     routes.push({
       name: 'through a proxy',
-      fetch: proxiedFetch(options.proxyUrls),
+      fetch: proxy.fetch,
     });
   }
 

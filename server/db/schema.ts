@@ -22,10 +22,8 @@ export const jobs = pgTable(
   {
     id: uuid('id').primaryKey().defaultRandom(),
 
-    // SHA-256 hashes of the token that authorizes requests about this job and
-    // of the Disney account it books for.
+    // The SHA-256 hash of the token that authorizes requests about this job.
     tokenHash: text('token_hash').notNull(),
-    accountHash: text('account_hash').notNull(),
 
     status: text('status').notNull(),
     resortId: text('resort_id').notNull(),
@@ -64,6 +62,5 @@ export const jobs = pgTable(
       table.status,
       table.leaseExpiresAt
     ),
-    index('jobs_account_hash_status_index').on(table.accountHash, table.status),
   ]
 );

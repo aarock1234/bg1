@@ -26,9 +26,17 @@ export function parseProxies(list: string): string[] {
     .map(toProxyUrl);
 }
 
+export type ProxiedFetch = {
+  fetch: typeof fetch;
+
+  // Closes the connections kept open to the proxy.
+  close(): Promise<void>;
+};
+
 // Returns a fetch that sends every request through one randomly chosen proxy,
-// so that a client keeps a single address for as long as it lives.
-export function proxiedFetch(proxyUrls: string[]): typeof fetch {
+// so that a client keeps a single address for as long as it lives. Whoever
+// asks for it closes it when the client is done.
+export function proxiedFetch(proxyUrls: string[]): ProxiedFetch {
   const proxyUrl = proxyUrls[Math.floor(Math.random() * proxyUrls.length)];
 
   if (!proxyUrl) {
@@ -40,12 +48,15 @@ export function proxiedFetch(proxyUrls: string[]): typeof fetch {
   // undici's fetch is the one that accepts a dispatcher. Its request and
   // response types mirror the global fetch's but are declared separately,
   // hence the casts between them.
-  return (input, init) => {
-    const response = undiciFetch(input as Parameters<typeof undiciFetch>[0], {
-      ...(init as Parameters<typeof undiciFetch>[1]),
-      dispatcher,
-    });
+  return {
+    fetch: (input, init) => {
+      const response = undiciFetch(input as Parameters<typeof undiciFetch>[0], {
+        ...(init as Parameters<typeof undiciFetch>[1]),
+        dispatcher,
+      });
 
-    return response as unknown as Promise<Response>;
+      return response as unknown as Promise<Response>;
+    },
+    close: () => dispatcher.close(),
   };
 }

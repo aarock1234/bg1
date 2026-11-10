@@ -2,8 +2,8 @@ import { randomUUID } from 'node:crypto';
 
 import { describeError } from '../describe-error';
 import { logger } from '../log';
-import { FailureCode, JobStatus } from './job';
-import { claimJobs, finishJob } from './repository';
+import { FailureCode, type Job, JobStatus } from './job';
+import { claimJobs, deleteFinishedJobs, finishJob } from './repository';
 import {
   type RunnerOptions,
   type RunningJob,
@@ -23,6 +23,12 @@ const LEASE_MS = 30_000;
 
 // How many jobs one instance runs at a time.
 const MAX_RUNNING_JOBS = 100;
+
+// How long a finished job is kept, and how often older ones are deleted. The
+// app stops asking about a job once it has seen it end, so the time is only
+// there for looking into what happened.
+const FINISHED_JOB_RETENTION_MS = 7 * 24 * 60 * 60_000;
+const PURGE_INTERVAL_MS = 60 * 60_000;
 
 export type WorkerOptions = Omit<RunnerOptions, 'owner' | 'leaseMs'>;
 
@@ -53,6 +59,7 @@ export function startWorker(options: WorkerOptions): Worker {
   // A wake-up call that arrives during a claim is kept for the next wait, so
   // a job created at that moment isn't left until the interval is over.
   let isWakePending = false;
+  let nextPurgeAt = 0;
   let endWait: () => void = () => undefined;
 
   function wakeUp(): void {
@@ -104,6 +111,40 @@ export function startWorker(options: WorkerOptions): Worker {
     });
   }
 
+  function run(job: Job): void {
+    const runningJob = startJob(job, runnerOptions);
+
+    runningJobs.set(job.id, runningJob);
+
+    // `done` never rejects, so this needs no failure handling of its own.
+    void runningJob.done.then(() => {
+      if (runningJobs.get(job.id) === runningJob) {
+        runningJobs.delete(job.id);
+      }
+    });
+  }
+
+  // Deletes long-finished jobs once in a while. A failure is left to the
+  // caller, which logs it along with any other trouble in its turn.
+  async function purgeFinishedJobsIfDue(): Promise<void> {
+    if (Date.now() < nextPurgeAt) {
+      return;
+    }
+
+    nextPurgeAt = Date.now() + PURGE_INTERVAL_MS;
+
+    const purged = await deleteFinishedJobs(FINISHED_JOB_RETENTION_MS);
+
+    if (purged > 0) {
+      logger.info(
+        {
+          purged,
+        },
+        'finished jobs purged'
+      );
+    }
+  }
+
   async function claimAvailableJobs(): Promise<void> {
     const capacity = MAX_RUNNING_JOBS - runningJobs.size;
 
@@ -118,12 +159,19 @@ export function startWorker(options: WorkerOptions): Worker {
     });
 
     for (const job of claimed.jobs) {
-      const runningJob = startJob(job, runnerOptions);
+      // A run that stalled long enough for its lease to lapse is still alive
+      // here. The claim has just renewed its lease, so it carries on alone.
+      if (runningJobs.has(job.id)) {
+        logger.warn(
+          {
+            jobId: job.id,
+          },
+          'job claimed while already running'
+        );
+        continue;
+      }
 
-      runningJobs.set(job.id, runningJob);
-
-      // `done` never rejects, so this needs no failure handling of its own.
-      void runningJob.done.then(() => runningJobs.delete(job.id));
+      run(job);
     }
 
     for (const jobId of claimed.unreadableJobIds) {
@@ -135,8 +183,9 @@ export function startWorker(options: WorkerOptions): Worker {
     while (!shutdown.signal.aborted) {
       try {
         await claimAvailableJobs();
+        await purgeFinishedJobsIfDue();
       } catch (error) {
-        logger.error(describeError(error), 'claiming jobs failed');
+        logger.error(describeError(error), 'job worker turn failed');
       }
 
       // Shutdown may have begun during the claim, after its wake-up call.

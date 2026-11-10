@@ -16,7 +16,6 @@ const MS_PER_SECOND = 1000;
 export type NewJob = Pick<
   Job,
   | 'tokenHash'
-  | 'accountHash'
   | 'resortId'
   | 'experienceId'
   | 'experienceName'
@@ -259,4 +258,23 @@ export async function cancelJob(id: string): Promise<Job | undefined> {
   }
 
   return jobSchema.parse(row);
+}
+
+// Deletes the jobs that ended longer ago than the given time and returns how
+// many there were. A finished job still names its guests, which nothing
+// needs once the app has shown how the search ended.
+export async function deleteFinishedJobs(olderThanMs: number): Promise<number> {
+  const rows = await db
+    .delete(jobs)
+    .where(
+      lt(
+        jobs.finishedAt,
+        sql`now() - make_interval(secs => ${olderThanMs / MS_PER_SECOND})`
+      )
+    )
+    .returning({
+      id: jobs.id,
+    });
+
+  return rows.length;
 }

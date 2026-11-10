@@ -9,7 +9,7 @@ export type JobToken = {
   hash: string;
 };
 
-export function sha256(value: string): string {
+function sha256(value: string): string {
   return createHash('sha256').update(value).digest('hex');
 }
 

@@ -54,17 +54,19 @@ export const jobGuestSchema = z.looseObject({
   id: z.string().min(1),
   name: z.string(),
 
-  // Walt Disney World's booking request needs this for each guest.
+  // Walt Disney World's booking request needs this for each guest. Disney
+  // may send null where there is none, which is stored as absent.
   orderDetails: z
-    .object({
-      externalIdentifier: z.object({
+    .looseObject({
+      externalIdentifier: z.looseObject({
         id: z.string(),
         idType: z.string(),
       }),
       orderId: z.string(),
       orderItemId: z.string(),
     })
-    .optional(),
+    .nullish()
+    .transform(orderDetails => orderDetails ?? undefined),
 });
 
 export type JobGuest = z.infer<typeof jobGuestSchema>;
@@ -106,7 +108,6 @@ export type JobFailure = {
 export const jobSchema = z.object({
   id: z.uuid(),
   tokenHash: z.string(),
-  accountHash: z.string(),
   status: z.enum(JobStatus),
   resortId: z.enum(RESORT_IDS),
   experienceId: z.string(),

@@ -9,7 +9,7 @@ import { encryptLogin } from '../disney/login-crypto';
 import { pushSubscriptionSchema } from '../push/notify';
 import { type Job, dateSchema, jobGuestSchema, timeSchema } from './job';
 import { insertJob } from './repository';
-import { newJobToken, sha256 } from './token';
+import { newJobToken } from './token';
 import {
   type BookingWindow,
   isRangeBackward,
@@ -172,7 +172,6 @@ export async function createJob(request: ValidJobRequest): Promise<CreatedJob> {
   const job = await insertJob({
     ...window,
     tokenHash: hash,
-    accountHash: sha256(login.swid),
     resortId,
     experienceId: request.experienceId,
     experienceName: name,

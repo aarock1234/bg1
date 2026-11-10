@@ -12,7 +12,7 @@ import {
   loginAuth,
 } from '../disney/credentials';
 import { decryptLogin, encryptLogin } from '../disney/login-crypto';
-import { proxiedFetch } from '../disney/proxies';
+import { type ProxiedFetch, proxiedFetch } from '../disney/proxies';
 import {
   LoginRefreshFailed,
   canRefresh,
@@ -126,7 +126,7 @@ class JobRun {
   private readonly lease: Lease;
   private readonly progress: JobProgress;
   private readonly log;
-  private readonly fetch: typeof fetch | undefined;
+  private readonly proxy: ProxiedFetch | undefined;
 
   private leaseRenewedAt = Date.now();
   private nextRefreshAt = 0;
@@ -149,10 +149,15 @@ class JobRun {
     this.log = logger.child({
       jobId: job.id,
     });
-    this.fetch =
+    this.proxy =
       options.proxyUrls.length > 0
         ? proxiedFetch(options.proxyUrls)
         : undefined;
+  }
+
+  // Sends the run's requests to Disney, or undefined to send them directly.
+  private get fetch(): typeof fetch | undefined {
+    return this.proxy?.fetch;
   }
 
   stop(reason: StopReason): void {
@@ -169,9 +174,19 @@ class JobRun {
       'job started'
     );
 
-    const ending = await this.search();
+    try {
+      await this.conclude(await this.search());
+    } finally {
+      await this.closeProxy();
+    }
+  }
 
-    await this.conclude(ending);
+  private async closeProxy(): Promise<void> {
+    try {
+      await this.proxy?.close();
+    } catch (error) {
+      this.log.warn(describeError(error), 'proxy connections did not close');
+    }
   }
 
   private async search(): Promise<Ending> {
@@ -312,9 +327,11 @@ class JobRun {
         return;
       }
 
+      // The heartbeat goes first: the checkpoint may refresh the login, which
+      // can take long enough for the lease to lapse.
       try {
-        await this.checkpoint(session);
         await this.heartbeat();
+        await this.checkpoint(session);
       } catch (error) {
         this.log.error(describeError(error), 'job heartbeat failed');
       }

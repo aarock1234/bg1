@@ -3,6 +3,7 @@ import { FC, useCallback, useEffect, useState } from 'react';
 import { AuthData, ReauthNeeded, authStore } from '@/api/auth';
 import { InvalidOrigin } from '@/api/client';
 import { LLClient } from '@/api/ll';
+import { RELAY_OPTIONS } from '@/api/relay';
 import { RESORT_TIME_ZONES, Resort, loadResort } from '@/api/resort';
 import { VQClient } from '@/api/vq';
 import { HOME_URL } from '@/config';
@@ -16,6 +17,7 @@ import useDisclaimer from '@/hooks/useDisclaimer';
 import useNews from '@/hooks/useNews';
 import { navigate } from '@/navigate';
 import onVisible from '@/onVisible';
+import { WEB_ROUTE, WebRoute } from '@/web-route';
 
 import LoginForm from './LoginForm';
 import Merlock from './ll/Merlock';
@@ -23,18 +25,20 @@ import BGClient from './vq/BGClient';
 
 export const NEWS_VERSION = 0;
 
-// The apps BG1 can run as. Which one runs depends on the Disney site BG1 is
-// opened on, which each app's client maps to a resort.
+// The apps BG1 can run as. On Disney's pages, which one runs depends on the
+// site BG1 is opened on, which each app's client maps to a resort.
 const APPS = [
   {
+    kind: 'll',
     Client: LLClient,
     Component: Merlock,
   },
   {
+    kind: 'vq',
     Client: VQClient,
     Component: BGClient,
   },
-];
+] as const;
 
 type LoadedApp = {
   Component: FC;
@@ -42,9 +46,31 @@ type LoadedApp = {
   clients: Clients;
 };
 
-// Returns the app for the site BG1 is opened on, or undefined when no app
-// runs on this site.
+// Loads the app a page on BG1's own site asks for. Its requests to Disney go
+// through BG1's server.
+async function loadWebApp(route: WebRoute): Promise<LoadedApp | undefined> {
+  const app = APPS.find(({ kind }) => kind === route.app);
+
+  if (!app) {
+    return undefined;
+  }
+
+  const resort = await loadResort(route.resortId);
+
+  return {
+    Component: app.Component,
+    resort,
+    clients: createClients(resort, RELAY_OPTIONS),
+  };
+}
+
+// Returns the app for the page BG1 is opened on, or undefined when no app
+// runs there.
 async function loadApp(): Promise<LoadedApp | undefined> {
+  if (WEB_ROUTE) {
+    return loadWebApp(WEB_ROUTE);
+  }
+
   for (const { Client, Component } of APPS) {
     try {
       const resort = await loadResort(Client.originToResortId(origin));

@@ -50,18 +50,8 @@ p {
 
 /* Tapping twice quickly should press a button twice, not zoom the page. */
 a,
-button,
-select,
-input {
+button {
   touch-action: manipulation;
-}
-
-.visually-hidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
 }
 
 .hero {
@@ -81,49 +71,6 @@ input {
   font-size: 1.05rem;
 }
 
-.status {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin-left: 8px;
-  color: var(--text-muted);
-  font-size: 0.8rem;
-  font-weight: 500;
-  letter-spacing: 0;
-}
-
-.status::before {
-  content: '';
-  width: 6px;
-  height: 6px;
-  border: 1px solid var(--text-muted);
-  border-radius: 50%;
-}
-
-.status-ready::before {
-  border-color: var(--text);
-  background: var(--text);
-}
-
-/* The autoloader script adds the bg1-installed class when it runs here. */
-.status-ready,
-.setup-done,
-.bg1-installed .status-missing,
-.bg1-installed .steps,
-.bg1-installed .setup-hint,
-.bg1-installed .platform {
-  display: none;
-}
-
-.bg1-installed .status-ready {
-  display: inline-flex;
-}
-
-.bg1-installed .setup-done {
-  display: block;
-  color: var(--text-muted);
-}
-
 section {
   margin-top: 36px;
 }
@@ -133,25 +80,6 @@ h2 {
   font-size: 1.05rem;
   font-weight: 600;
   letter-spacing: -0.02em;
-}
-
-.section-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 12px;
-}
-
-.section-heading h2 {
-  display: flex;
-  align-items: center;
-  margin: 0;
-}
-
-h3 {
-  margin: 0;
-  font-size: 0.95rem;
-  font-weight: 500;
 }
 
 .list {
@@ -167,7 +95,6 @@ h3 {
 .row {
   display: flex;
   align-items: center;
-  gap: 12px;
   min-height: 52px;
   padding: 0 14px;
   font-weight: 500;
@@ -189,110 +116,22 @@ h3 {
   background: var(--surface-pressed);
 }
 
-.platform select {
-  height: 30px;
-  padding: 0 8px;
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 44px;
+  padding: 0 14px;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--surface);
   color: var(--text);
   font: inherit;
-  font-size: 16px;
-}
-
-.steps {
-  counter-reset: step;
-}
-
-/* Each step is a row: its number, its title, and a Done button. Only the
-   current step also shows its details and its link. */
-.steps li {
-  display: grid;
-  grid-template-columns: 22px 1fr auto;
-  align-items: center;
-  gap: 6px 12px;
-  padding: 13px 14px;
-  color: var(--text-muted);
-  counter-increment: step;
-}
-
-.steps li + li {
-  border-top: 1px solid var(--border);
-}
-
-.steps li::before {
-  content: counter(step);
-  display: grid;
-  place-items: center;
-  width: 22px;
-  height: 22px;
-  border: 1px solid var(--border);
-  border-radius: 50%;
-  font-size: 0.75rem;
-  font-weight: 500;
-}
-
-.steps h3 {
-  color: var(--text-muted);
-}
-
-.steps p,
-.steps .action {
-  display: none;
-  grid-column: 2 / -1;
-  font-size: 0.9rem;
-}
-
-.steps b {
-  color: var(--text);
-  font-weight: 500;
-}
-
-.steps .is-current h3 {
-  color: var(--text);
-}
-
-.steps .is-current::before {
-  border-color: var(--text);
-  color: var(--text);
-}
-
-.steps .is-current p {
-  display: block;
-}
-
-.steps .is-done::before {
-  content: '✓';
-  border-color: transparent;
-  background: var(--text);
-  color: var(--background);
-}
-
-.button,
-.steps .is-current .action {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  height: 36px;
-  padding: 0 14px;
-  border: 1px solid transparent;
-  border-radius: 8px;
-  background: var(--text);
-  color: var(--background);
-  font: inherit;
-  font-size: 0.9rem;
   font-weight: 500;
   transition: opacity 0.12s ease;
 }
 
-.steps .is-current .action {
-  justify-self: start;
-  margin-top: 4px;
-}
-
-.button:active,
-.action:active,
-.mark:active {
+.button:active {
   opacity: 0.7;
 }
 
@@ -300,45 +139,10 @@ h3 {
   opacity: 0.4;
 }
 
-.button-secondary {
-  border-color: var(--border);
-  background: var(--surface);
-  color: var(--text);
-}
-
-.button-wide {
-  width: 100%;
-  height: 44px;
-}
-
-.mark {
-  grid-column: 3;
-  grid-row: 1;
-  display: none;
-  height: 28px;
-  padding: 0 10px;
-  border: 1px solid var(--border);
-  border-radius: 7px;
-  background: none;
-  color: var(--text-muted);
-  font: inherit;
-  font-size: 0.8rem;
-  font-weight: 500;
-}
-
-.steps .is-current .mark,
-.steps .is-done .mark {
-  display: block;
-}
-
-.steps .is-current .mark {
-  color: var(--text);
-}
-
-.note {
-  margin-top: 10px;
-  color: var(--text-muted);
-  font-size: 0.82rem;
+.button-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
 }
 
 #server-check {
@@ -348,12 +152,6 @@ h3 {
 
 #server-check p {
   color: var(--text-muted);
-}
-
-.button-pair {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
 }
 
 .checks li {
@@ -403,8 +201,6 @@ footer {
 }
 
 footer p + p {
-  display: flex;
-  gap: 16px;
   margin-top: 10px;
 }
 

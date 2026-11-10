@@ -12,11 +12,31 @@ export class SensorDataUnavailable extends Error {
   name = 'SensorDataUnavailable';
 }
 
+// Fetches a new token straight from the BG1 backend, which only answers
+// Disney's pages and servers.
+export async function fetchTokenFromService(): Promise<string> {
+  const response = await fetch(SENSOR_DATA_URL, {
+    method: 'POST',
+  });
+
+  if (!response.ok) {
+    throw new SensorDataUnavailable(
+      `sensor data request failed with status ${response.status}`
+    );
+  }
+
+  const encryptedToken = new Uint8Array(await response.arrayBuffer());
+
+  return decryptWithAppKey(encryptedToken);
+}
+
 // Supplies the Akamai x-acf-sensor-data token that protected Disney endpoints
-// require, fetching a new one from the BG1 backend as needed.
-class SensorDataSource {
+// require, fetching a new one as needed.
+export class SensorDataSource {
   protected token: Promise<string> = Promise.resolve('');
   protected uses = MAX_USES_PER_TOKEN;
+
+  constructor(protected fetchToken: () => Promise<string>) {}
 
   get(): Promise<string> {
     this.uses += 1;
@@ -37,22 +57,6 @@ class SensorDataSource {
   reset(): void {
     this.uses = MAX_USES_PER_TOKEN;
   }
-
-  protected async fetchToken(): Promise<string> {
-    const response = await fetch(SENSOR_DATA_URL, {
-      method: 'POST',
-    });
-
-    if (!response.ok) {
-      throw new SensorDataUnavailable(
-        `sensor data request failed with status ${response.status}`
-      );
-    }
-
-    const encryptedToken = new Uint8Array(await response.arrayBuffer());
-
-    return decryptWithAppKey(encryptedToken);
-  }
 }
 
-export const sensorData = new SensorDataSource();
+export const sensorData = new SensorDataSource(fetchTokenFromService);

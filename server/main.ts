@@ -6,12 +6,14 @@ import { logger } from './log';
 
 const SHUTDOWN_SIGNALS = ['SIGINT', 'SIGTERM'] as const;
 
-function main(): void {
+async function main(): Promise<void> {
+  const app = await createApp({
+    proxyUrls: env.DISNEY_PROXIES,
+  });
+
   const server = serve(
     {
-      fetch: createApp({
-        proxyUrls: env.DISNEY_PROXIES,
-      }).fetch,
+      fetch: app.fetch,
       port: env.PORT,
     },
     ({ port }) => {
@@ -51,4 +53,12 @@ function main(): void {
   }
 }
 
-main();
+main().catch((error: unknown) => {
+  logger.fatal(
+    {
+      err: error,
+    },
+    'server failed to start'
+  );
+  process.exitCode = 1;
+});

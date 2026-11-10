@@ -1,5 +1,6 @@
 import { createContext } from 'react';
 
+import { ApiClientOptions } from '@/api/client';
 import { DasClient } from '@/api/das';
 import { ItineraryClient } from '@/api/itinerary';
 import { LiveDataClient } from '@/api/livedata';
@@ -26,12 +27,15 @@ export default createContext<Clients>({
   vq: {} as VQClient,
 });
 
-export function createClients(resort: Resort): Clients {
-  const das = new DasClient(resort);
-  const itinerary = new ItineraryClient(resort);
+export function createClients(
+  resort: Resort,
+  options?: ApiClientOptions
+): Clients {
+  const das = new DasClient(resort, options);
+  const itinerary = new ItineraryClient(resort, options);
   const liveData = new LiveDataClient(resort);
-  const ll = createLLClient(resort);
-  const vq = new VQClient(resort);
+  const ll = createLLClient(resort, options);
+  const vq = new VQClient(resort, options);
 
   itinerary.onRefresh = bookings => ll.track(bookings);
 

@@ -183,7 +183,7 @@ export default function ServerCheck() {
           <button
             key={resortId}
             type="button"
-            className="button button-secondary button-wide"
+            className="button"
             disabled={check.kind === 'running'}
             onClick={() => startCheck(resortId)}
           >

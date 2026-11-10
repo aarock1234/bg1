@@ -3,7 +3,7 @@ import { RateLimit } from '@/ratelimit';
 
 import { Auth, authStore } from './auth';
 import { RESORT_IDS, Resort, ResortId } from './resort';
-import { sensorData } from './sensor-data';
+import { type SensorDataSource, sensorData } from './sensor-data';
 
 // The version of the official Disney app that BG1 identifies itself as.
 export const APP_VERSION = '8.23.3';
@@ -38,7 +38,13 @@ export type ApiClientOptions = {
   fetch?: typeof fetch;
 
   rateLimit?: RateLimit;
+
+  // Supplies bot-protection tokens. Defaults to fetching them straight from
+  // the BG1 backend.
+  sensorData?: SensorData;
 };
+
+type SensorData = Pick<SensorDataSource, 'get' | 'reset'>;
 
 export class InvalidOrigin extends Error {
   name = 'InvalidOrigin';
@@ -61,6 +67,7 @@ export abstract class ApiClient {
   protected auth: Auth;
   protected fetch: typeof fetch | undefined;
   protected rateLimit: RateLimit;
+  protected sensorData: SensorData;
 
   protected static origins: Record<ResortId, string> = {
     WDW: 'https://disneyworld.disney.go.com',
@@ -71,10 +78,6 @@ export abstract class ApiClient {
   // BG1 runs on.
   static get allOrigins(): string[] {
     return Object.values(this.origins);
-  }
-
-  static originFor(resortId: ResortId): string {
-    return this.origins[resortId];
   }
 
   static originToResortId(origin: string): ResortId {
@@ -94,6 +97,7 @@ export abstract class ApiClient {
     this.origin = origins[resort.id];
     this.auth = options.auth ?? authStore;
     this.fetch = options.fetch;
+    this.sensorData = options.sensorData ?? sensorData;
     this.rateLimit = options.rateLimit ?? new RateLimit(REQUESTS_PER_SECOND);
   }
 
@@ -131,7 +135,7 @@ export abstract class ApiClient {
 
   protected async sensorDataHeaders(): Promise<Record<string, string>> {
     return {
-      'x-acf-sensor-data': await sensorData.get(),
+      'x-acf-sensor-data': await this.sensorData.get(),
       'x-app-id': `${this.resort.id}-IOS-${APP_VERSION}`,
     };
   }
@@ -147,7 +151,7 @@ export abstract class ApiClient {
       status === STATUS_FORBIDDEN || status === STATUS_NETWORK_FAILURE;
 
     if (request.sensorData && isSensorDataRejected) {
-      sensorData.reset();
+      this.sensorData.reset();
     }
   }
 }

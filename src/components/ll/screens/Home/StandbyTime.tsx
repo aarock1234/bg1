@@ -2,6 +2,7 @@ import { Experience } from '@/api/ll';
 import { Time } from '@/components/Time';
 
 import LabeledItem from './LabeledItem';
+import { waitTone } from './time-until';
 
 // Average waits are shown rounded to the nearest multiple of this.
 const AVERAGE_WAIT_STEP_MINUTES = 5;
@@ -47,7 +48,7 @@ function Minutes({ children, rounded }: MinutesProps) {
   const minutes = rounded ? roundToAverageWaitStep(children) : children;
 
   return (
-    <time dateTime={`PT${minutes}M`}>
+    <time dateTime={`PT${minutes}M`} className={waitTone(minutes)}>
       {minutes} <span className="text-[13px] font-normal text-muted">min</span>
     </time>
   );

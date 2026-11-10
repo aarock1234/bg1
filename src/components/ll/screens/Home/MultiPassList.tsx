@@ -27,7 +27,6 @@ import { HomeTabProps } from '../Home';
 import RefreshButton from '../RefreshButton';
 import BookingDateSelect from './BookingDateSelect';
 import LLButton from './LLButton';
-import LabeledItem from './LabeledItem';
 import Legend, { Symbol } from './Legend';
 import ParkSelect from './ParkSelect';
 import StandbyTime from './StandbyTime';
@@ -343,33 +342,39 @@ type ExperienceItemProps = {
 function ExperienceItem(props: ExperienceItemProps) {
   const { experience, park, isBookingToday, onStarToggle } = props;
   const { goTo } = use(NavContext);
+  const now = DateTime.now().time;
 
+  // One compact row: the name and its markers over the standby wait, then
+  // the return time to tap, then the star.
   return (
-    <li className="px-3.5 pt-1.5 pb-3">
-      <div className="-mr-2.5 flex items-center">
-        <h3 className="mt-0 min-w-0 flex-1 py-2 pr-2 font-medium">
-          {experience.name}
-        </h3>
-        <AvailabilityInfoButton
-          experience={experience}
-          park={park}
-          isBookingToday={isBookingToday}
-        />
-        {experience.booked && (
-          <InfoButton
-            name={BOOKED}
-            icon={CheckmarkIcon}
-            onClick={() => goTo(<BookedDesc />)}
+    <li className="flex items-center gap-2 py-2 pr-1 pl-3.5">
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center">
+          <h3 className="mt-0 truncate text-[15px] leading-6 font-medium">
+            {experience.name}
+          </h3>
+          <AvailabilityInfoButton
+            experience={experience}
+            park={park}
+            isBookingToday={isBookingToday}
           />
-        )}
-        <StarButton experience={experience} onToggle={onStarToggle} />
+          {experience.booked && (
+            <InfoButton
+              name={BOOKED}
+              icon={CheckmarkIcon}
+              onClick={() => goTo(<BookedDesc />)}
+            />
+          )}
+        </div>
+        <div className="text-[13px]">
+          <StandbyTime experience={experience} average={!isBookingToday} />
+        </div>
       </div>
-      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-        <StandbyTime experience={experience} average={!isBookingToday} />
-        <LabeledItem label="LL">
-          <LLButton experience={experience} />
-        </LabeledItem>
-      </div>
+      <LLButton
+        experience={experience}
+        now={isBookingToday ? now : undefined}
+      />
+      <StarButton experience={experience} onToggle={onStarToggle} />
     </li>
   );
 }
@@ -443,10 +448,10 @@ function InfoButton({ name, icon: Icon, onClick, className }: InfoButtonProps) {
   return (
     <button
       aria-label={`${name} (more info)`}
-      className={`grid h-10 w-8 shrink-0 place-items-center active:opacity-60 ${className ?? ''}`}
+      className={`grid h-6 w-7 shrink-0 place-items-center active:opacity-60 ${className ?? ''}`}
       onClick={onClick}
     >
-      <Icon />
+      <Icon className="w-4" />
     </button>
   );
 }

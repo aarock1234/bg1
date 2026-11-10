@@ -19,9 +19,15 @@
   --color-muted: #8f8f8f;
   --color-faint: #5c5c5c;
 
-  /* The one accent. Only for errors and destructive actions, and never as the
-     only signal. */
+  /* Errors and destructive actions, and the longest waits. Never the only
+     signal. */
   --color-danger: #ff6369;
+
+  /* How good a wait or a return time is, at a glance: short or soon, and
+     middling. Long or far off uses danger or muted. Always beside the number
+     itself, never in place of it. */
+  --color-good: #4ade80;
+  --color-warn: #fbbf24;
 
   --radius-control: 8px;
   --radius-card: 12px;

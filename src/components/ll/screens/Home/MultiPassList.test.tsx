@@ -136,7 +136,11 @@ describe('MultiPassList', () => {
     click(screen.getAllByTitle('Add to Favorites')[4]!);
     expect(getExperiences()).toEqual(names([jc, sm, hm]));
 
-    click(formatTime(sm.flex.nextAvailableTime));
+    const returnTime = formatTime(sm.flex.nextAvailableTime);
+    const returnTimeButton = screen.getByRole('button', {
+      name: `${returnTime} in 40 min`,
+    });
+    click(returnTimeButton);
     await see.screen('Lightning Lane');
     await loading();
     see(sm.name);

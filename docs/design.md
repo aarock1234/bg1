@@ -13,25 +13,29 @@ Black and white, dark only. A near-black page, slightly lighter surfaces
 outlined by hairlines, light text, and muted gray for anything secondary. The
 one white thing on a screen is its primary button. There are no park colors, no
 gradients, and no shadows except under things that float (sheets and toasts).
-State is shown with weight, an icon, an outlined badge, or the single red
-accent, and never with color alone.
+State is shown with weight, an icon, or an outlined badge. Three accents color
+numbers by how good they are at a glance: green for a short wait or a return
+time coming up soon, amber for middling, red for a long wait (red also marks
+errors). Color always sits on the number itself, never in place of it.
 
 ## Tokens
 
 All tokens are defined in the `@theme` block of `src/bg1.css`, so each one is a
 Tailwind class.
 
-| Token         | Value     | Classes                    | Use it for                                    |
-| ------------- | --------- | -------------------------- | --------------------------------------------- |
-| `canvas`      | `#0a0a0a` | `bg-canvas`, `text-canvas` | The page. Text on a white button.             |
-| `surface`     | `#111111` | `bg-surface`               | Lists, cards, sheets.                         |
-| `pressed`     | `#1a1a1a` | `bg-pressed`               | Pressed rows, controls that sit on a surface. |
-| `line`        | `#242424` | `border-line`              | Hairline borders and dividers.                |
-| `line-strong` | `#3d3d3d` | `border-line-strong`       | Outlines that must be seen: inputs, alerts.   |
-| `ink`         | `#ededed` | `text-ink`, `bg-ink`       | Text. The primary button.                     |
-| `muted`       | `#8f8f8f` | `text-muted`               | Secondary text, captions, quiet icons.        |
-| `faint`       | `#5c5c5c` | `text-faint`               | Placeholders and "off" icons only.            |
-| `danger`      | `#ff6369` | `text-danger`              | Errors and destructive actions. Nothing else. |
+| Token         | Value     | Classes                    | Use it for                                      |
+| ------------- | --------- | -------------------------- | ----------------------------------------------- |
+| `canvas`      | `#0a0a0a` | `bg-canvas`, `text-canvas` | The page. Text on a white button.               |
+| `surface`     | `#111111` | `bg-surface`               | Lists, cards, sheets.                           |
+| `pressed`     | `#1a1a1a` | `bg-pressed`               | Pressed rows, controls that sit on a surface.   |
+| `line`        | `#242424` | `border-line`              | Hairline borders and dividers.                  |
+| `line-strong` | `#3d3d3d` | `border-line-strong`       | Outlines that must be seen: inputs, alerts.     |
+| `ink`         | `#ededed` | `text-ink`, `bg-ink`       | Text. The primary button.                       |
+| `muted`       | `#8f8f8f` | `text-muted`               | Secondary text, captions, quiet icons.          |
+| `faint`       | `#5c5c5c` | `text-faint`               | Placeholders and "off" icons only.              |
+| `danger`      | `#ff6369` | `text-danger`              | Errors, destructive actions, the longest waits. |
+| `good`        | `#4ade80` | `text-good`                | Short waits and return times coming up soon.    |
+| `warn`        | `#fbbf24` | `text-warn`                | Middling waits and return times a while away.   |
 
 Other tokens: `rounded-control` (8px, buttons and inputs), `rounded-card`
 (12px, lists and cards), `rounded-sheet` (16px, bottom sheets), `font-sans`
@@ -425,8 +429,8 @@ Don't:
 
 - Don't use Tailwind's color palette. No `bg-white` blocks, no yellow alerts,
   no park-colored headings.
-- Don't add gradients, shadows, or new colors. If a state seems to need a
-  color, try weight, an icon, or a badge first.
+- Don't add gradients, shadows, or colors beyond the three accents. If a
+  state seems to need a color, try weight, an icon, or a badge first.
 - Don't use `uppercase` for headings or labels. Sentence case, muted, small.
 - Don't use `100vh`; screens are already sized. Don't add horizontal padding
   to the screen body; it has the gutters.

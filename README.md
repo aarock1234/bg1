@@ -15,7 +15,7 @@ BG1 uses [pnpm](https://pnpm.io/).
 - `pnpm install` installs dependencies.
 - `pnpm start` runs the dev server at `https://localhost:3000/bg1/`.
 - `pnpm build` writes the production build to `dist/`.
-- `pnpm serve` runs the server that hosts `dist/` under `/bg1/`. Railway runs it on every push to `mickey`. It needs `API_SECRET` (32 characters or more) in its environment, which callers of `/api` present as a bearer token.
+- `pnpm serve` runs the server that hosts `dist/` under `/bg1/`. Railway runs it on every push to `mickey`. It needs `API_SECRET` (32 characters or more) in its environment, which callers of `/api` present as a bearer token. `DISNEY_PROXIES` is optional: a list of `host:port:username:password` proxies for the server's requests to Disney.
 - `pnpm checkall` runs the tests, linter, format check, and type check.
 
 The hosts BG1 depends on are listed in `src/config.ts`. The home page and the userscript live in `site/`; the address the userscript loads the app from is `HOME_URL` in `site/autoloader.user.js`.

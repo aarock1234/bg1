@@ -1,173 +1,183 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useState } from 'react';
 
+import { ParkHours } from '@/api/ll';
+import { ReturnTimeRange } from '@/api/ll/auto-book';
+import { returnTimeSlots } from '@/api/ll/return-time-slots';
+import Alert from '@/components/Alert';
 import Button from '@/components/Button';
 import Select from '@/components/Select';
-import { getClosestFutureTime, timeToDate } from '@/datetime';
+import { DateTime, ParkTime, formatTime } from '@/datetime';
+import { AutoBookStatus } from '@/hooks/useAutoBook';
 
-const timeOptions = new Map<string, { text: string }>([
-  ['07:00:00', { text: '7:00 AM' }],
-  ['07:15:00', { text: '7:15 AM' }],
-  ['07:30:00', { text: '7:30 AM' }],
-  ['07:45:00', { text: '7:45 AM' }],
-  ['08:00:00', { text: '8:00 AM' }],
-  ['08:15:00', { text: '8:15 AM' }],
-  ['08:30:00', { text: '8:30 AM' }],
-  ['08:45:00', { text: '8:45 AM' }],
-  ['09:00:00', { text: '9:00 AM' }],
-  ['09:15:00', { text: '9:15 AM' }],
-  ['09:30:00', { text: '9:30 AM' }],
-  ['09:45:00', { text: '9:45 AM' }],
-  ['10:00:00', { text: '10:00 AM' }],
-  ['10:15:00', { text: '10:15 AM' }],
-  ['10:30:00', { text: '10:30 AM' }],
-  ['10:45:00', { text: '10:45 AM' }],
-  ['11:00:00', { text: '11:00 AM' }],
-  ['11:15:00', { text: '11:15 AM' }],
-  ['11:30:00', { text: '11:30 AM' }],
-  ['11:45:00', { text: '11:45 AM' }],
-  ['12:00:00', { text: '12:00 PM' }],
-  ['12:15:00', { text: '12:15 PM' }],
-  ['12:30:00', { text: '12:30 PM' }],
-  ['12:45:00', { text: '12:45 PM' }],
-  ['13:00:00', { text: '1:00 PM' }],
-  ['13:15:00', { text: '1:15 PM' }],
-  ['13:30:00', { text: '1:30 PM' }],
-  ['13:45:00', { text: '1:45 PM' }],
-  ['14:00:00', { text: '2:00 PM' }],
-  ['14:15:00', { text: '2:15 PM' }],
-  ['14:30:00', { text: '2:30 PM' }],
-  ['14:45:00', { text: '2:45 PM' }],
-  ['15:00:00', { text: '3:00 PM' }],
-  ['15:15:00', { text: '3:15 PM' }],
-  ['15:30:00', { text: '3:30 PM' }],
-  ['15:45:00', { text: '3:45 PM' }],
-  ['16:00:00', { text: '4:00 PM' }],
-  ['16:15:00', { text: '4:15 PM' }],
-  ['16:30:00', { text: '4:30 PM' }],
-  ['16:45:00', { text: '4:45 PM' }],
-  ['17:00:00', { text: '5:00 PM' }],
-  ['17:15:00', { text: '5:15 PM' }],
-  ['17:30:00', { text: '5:30 PM' }],
-  ['17:45:00', { text: '5:45 PM' }],
-  ['18:00:00', { text: '6:00 PM' }],
-  ['18:15:00', { text: '6:15 PM' }],
-  ['18:30:00', { text: '6:30 PM' }],
-  ['18:45:00', { text: '6:45 PM' }],
-  ['19:00:00', { text: '7:00 PM' }],
-  ['19:15:00', { text: '7:15 PM' }],
-  ['19:30:00', { text: '7:30 PM' }],
-  ['19:45:00', { text: '7:45 PM' }],
-  ['20:00:00', { text: '8:00 PM' }],
-  ['20:15:00', { text: '8:15 PM' }],
-  ['20:30:00', { text: '8:30 PM' }],
-  ['20:45:00', { text: '8:45 PM' }],
-  ['21:00:00', { text: '9:00 PM' }],
-  ['21:15:00', { text: '9:15 PM' }],
-  ['21:30:00', { text: '9:30 PM' }],
-  ['21:45:00', { text: '9:45 PM' }],
-  ['22:00:00', { text: '10:00 PM' }],
-  ['22:15:00', { text: '10:15 PM' }],
-  ['22:30:00', { text: '10:30 PM' }],
-  ['22:45:00', { text: '10:45 PM' }],
-  ['23:00:00', { text: '11:00 PM' }],
-  ['23:15:00', { text: '11:15 PM' }],
-  ['23:30:00', { text: '11:30 PM' }],
-  ['23:45:00', { text: '11:45 PM' }],
-]);
+import { attemptMessage, failureMessage } from './auto-book-messages';
 
-export default function AutoBook({
-  onBook: onBook,
-}: {
-  onBook: (minTime: string, maxTime: string) => Promise<void>;
-}) {
-  const [minTime, setMinTime] = useState<string>(
-    getClosestFutureTime(timeOptions)
-  );
-  const [maxTime, setMaxTime] = useState<string>(
-    getClosestFutureTime(timeOptions)
-  );
-  const [isAutoBooking, setIsAutoBooking] = useState<boolean>(false);
+const STOP_BUTTON_COLOR = 'bg-red-600 text-white';
 
-  useEffect(() => {
-    let isMounted = true;
+type AutoBookProps = {
+  status: AutoBookStatus;
 
-    async function asyncBook() {
-      while (isAutoBooking && isMounted) {
-        await onBook(minTime, maxTime);
-        await new Promise(resolve => setTimeout(resolve, 500));
-      }
-    }
+  // The park's hours on the day being booked, once an offer has reported them.
+  parkHours?: ParkHours;
 
-    asyncBook();
+  // Whether the booking is for today, when return times already past can't be
+  // chosen.
+  isForToday: boolean;
 
-    return () => {
-      isMounted = false;
-    };
-  }, [isAutoBooking, minTime, maxTime]);
+  onStart: (range: ReturnTimeRange) => void;
+  onStop: () => void;
+};
 
-  const toggleAutoBooking = () => {
-    setIsAutoBooking(!isAutoBooking);
-  };
+type TimeSelectProps = {
+  label: string;
+  times: ParkTime[];
+  selected: ParkTime;
+  disabled: boolean;
+  onChange: (time: ParkTime) => void;
+};
 
-  const maxTimeOptions = useMemo(() => {
-    const minTimeDate = timeToDate(minTime);
-    const maxTimeOptions = new Map<string, { text: string }>();
+type TimeOption = {
+  text: string;
+};
 
-    for (const [time, { text }] of timeOptions.entries()) {
-      const timeDate = timeToDate(time);
-      if (timeDate > minTimeDate) {
-        maxTimeOptions.set(time, { text });
-      }
-    }
+type ProgressProps = {
+  status: AutoBookStatus;
+};
 
-    setMaxTime(getClosestFutureTime(maxTimeOptions));
+function findSlot(
+  slots: ParkTime[],
+  time: ParkTime | undefined
+): ParkTime | undefined {
+  if (!time) {
+    return undefined;
+  }
 
-    return maxTimeOptions;
-  }, [minTime]);
+  return slots.find(slot => slot.equals(time));
+}
+
+function TimeSelect(props: TimeSelectProps) {
+  const { label, times, selected, disabled, onChange } = props;
+  const options = new Map<string, TimeOption>();
+
+  for (const time of times) {
+    options.set(time.toString(), {
+      text: formatTime(time),
+    });
+  }
 
   return (
-    <>
-      <div className="flex flex-col">
-        <h2 className="text-xl font-semibold">Auto Booking</h2>
-        <p className="text-sm text-red-500 mt-2 mb-2">
-          ⚠️ You must keep this page open for auto booking to work.
+    <label className="flex items-center gap-x-2 font-semibold">
+      {label}
+      <Select
+        options={options}
+        selected={selected.toString()}
+        onChange={time => onChange(ParkTime.from(time))}
+        title={`${label} Return Time`}
+        disabled={disabled}
+      />
+    </label>
+  );
+}
+
+function Progress({ status }: ProgressProps) {
+  if (status.kind === 'failed') {
+    return (
+      <Alert title="Auto Booking Stopped">
+        <p>{failureMessage(status.error)}</p>
+      </Alert>
+    );
+  }
+
+  if (status.kind !== 'searching') {
+    return null;
+  }
+
+  const { attempts, lastAttempt } = status;
+
+  return (
+    <div role="status">
+      <p>Looking for a return time…</p>
+      {lastAttempt && (
+        <p>
+          {attemptMessage(lastAttempt)} Checked {attempts}{' '}
+          {attempts === 1 ? 'time' : 'times'} so far.
         </p>
-        {/* <p className="text-sm">
-          Automatically book the experience when it becomes available.
-        </p> */}
-        <div className="flex flex-row">
-          <div>
-            <p className="text-sm mt-0 mb-2">
-              The earliest time you'd want to book the experience.
-            </p>
-            <Select
-              className="mb-4"
-              options={timeOptions}
-              selected={minTime}
-              onChange={setMinTime}
-              title={'Minimum Booking Time'}
-            />
-          </div>
-          <div>
-            <p className="text-sm mt-0 mb-2">
-              The latest time you'd want to book the experience.
-            </p>
-            <Select
-              className="mb-4"
-              options={maxTimeOptions}
-              selected={maxTime}
-              onChange={setMaxTime}
-              title={'Maximum Booking Time'}
-            />
-          </div>
-        </div>
-        <Button
-          className={`p-2 mb-24 text-white ${isAutoBooking && 'bg-red-500'}`}
-          onClick={toggleAutoBooking}
-        >
-          {isAutoBooking ? 'Stop Auto Booking' : 'Start Auto Booking'}
-        </Button>
+      )}
+    </div>
+  );
+}
+
+// Lets the guest pick a range of return times and have BG1 keep checking
+// until it can book one of them.
+export default function AutoBook(props: AutoBookProps) {
+  const { status, parkHours, isForToday, onStart, onStop } = props;
+  const [chosenEarliest, setChosenEarliest] = useState<ParkTime>();
+  const [chosenLatest, setChosenLatest] = useState<ParkTime>();
+  const isSearching = status.kind === 'searching';
+
+  const slots = returnTimeSlots({
+    parkHours,
+    notBefore: isForToday ? DateTime.now().time : undefined,
+  });
+  const earliest = findSlot(slots, chosenEarliest) ?? slots[0];
+
+  if (!earliest) {
+    return null;
+  }
+
+  // A choice that is no longer possible falls back to the widest range: from
+  // the first slot until the park closes.
+  const latestSlots = slots.filter(slot => slot >= earliest);
+  const latest = findSlot(latestSlots, chosenLatest) ?? latestSlots.at(-1);
+
+  if (!latest) {
+    return null;
+  }
+
+  const range: ReturnTimeRange = {
+    earliest,
+    latest,
+  };
+
+  function toggleSearch(): void {
+    if (isSearching) {
+      onStop();
+    } else {
+      onStart(range);
+    }
+  }
+
+  return (
+    <section className="mt-6">
+      <h3>Auto Booking</h3>
+      <p>
+        BG1 can keep checking and book the first return time that falls within
+        your range. Keep this screen open while it looks.
+      </p>
+      <div className="flex flex-wrap gap-x-6 gap-y-2 mt-3">
+        <TimeSelect
+          label="Earliest"
+          times={slots}
+          selected={earliest}
+          disabled={isSearching}
+          onChange={setChosenEarliest}
+        />
+        <TimeSelect
+          label="Latest"
+          times={latestSlots}
+          selected={latest}
+          disabled={isSearching}
+          onChange={setChosenLatest}
+        />
       </div>
-    </>
+      <Progress status={status} />
+      <Button
+        type="full"
+        className="mt-4"
+        color={isSearching ? STOP_BUTTON_COLOR : undefined}
+        onClick={toggleSearch}
+      >
+        {isSearching ? 'Stop Auto Booking' : 'Start Auto Booking'}
+      </Button>
+    </section>
   );
 }

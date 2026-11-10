@@ -76,7 +76,7 @@ function mockExperienceLimitReached() {
 }
 
 async function clickModify() {
-  click('Modify');
+  click('Modify Party');
   await see.screen('Modify Party');
 }
 

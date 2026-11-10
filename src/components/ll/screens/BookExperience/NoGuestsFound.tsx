@@ -1,10 +1,10 @@
 import FloatingButton from '@/components/FloatingButton';
 
-export default function NoGuestsFound({
-  onRefresh,
-}: {
+type NoGuestsFoundProps = {
   onRefresh: () => void;
-}) {
+};
+
+export default function NoGuestsFound({ onRefresh }: NoGuestsFoundProps) {
   return (
     <>
       <h3>No Guests Found</h3>

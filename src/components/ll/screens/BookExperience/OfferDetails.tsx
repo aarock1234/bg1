@@ -11,41 +11,46 @@ import ReturnTime from '../../ReturnTime';
 import SelectReturnTime from '../SelectReturnTime';
 import PartyList from './PartyList';
 
+type OfferDetailsProps = {
+  offer: Offer;
+  onOfferChange: (offer: Offer) => void;
+};
+
+function ChangeTimeButton({ offer, onOfferChange }: OfferDetailsProps) {
+  const { goTo } = use(NavContext);
+
+  function selectReturnTime(): void {
+    goTo(<SelectReturnTime offer={offer} onOfferChange={onOfferChange} />);
+  }
+
+  return (
+    <Button type="small" onClick={selectReturnTime}>
+      Change
+    </Button>
+  );
+}
+
+// Shows the return time being offered and who it would be booked for.
 export default function OfferDetails({
   offer,
   onOfferChange,
-}: {
-  offer: Offer;
-  onOfferChange: (offer: Offer) => void;
-}) {
-  const { goTo } = use(NavContext);
-  const { ll } = use(ClientsContext);
+}: OfferDetailsProps) {
+  const { timeSelect } = use(ClientsContext).ll.rules;
+
   return (
     <>
       <div className="flex items-center">
         <ReturnTime
           {...offer}
           button={
-            ll.rules.timeSelect && (
-              <Button
-                type="small"
-                onClick={() =>
-                  goTo(
-                    <SelectReturnTime
-                      offer={offer}
-                      onOfferChange={onOfferChange}
-                    />
-                  )
-                }
-              >
-                Change
-              </Button>
+            timeSelect && (
+              <ChangeTimeButton offer={offer} onOfferChange={onOfferChange} />
             )
           }
         />
       </div>
       {offer.changed && <Alert title="Return Time Changed" />}
-      {<OverlappingPlans offer={offer} />}
+      <OverlappingPlans offer={offer} />
       <PartyList />
     </>
   );

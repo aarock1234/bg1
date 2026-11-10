@@ -2,7 +2,6 @@ import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 import { defineConfig } from 'vite';
-import obfuscatorPlugin from 'vite-plugin-javascript-obfuscator';
 
 const server = {
   host: '0.0.0.0',
@@ -27,7 +26,7 @@ export default defineConfig({
   build: {
     outDir: '../dist',
     emptyOutDir: false,
-    rollupOptions: {
+    rolldownOptions: {
       input: ['src/bg1.tsx', 'src/bg1.css', 'src/responder.html'],
       output: {
         entryFileNames: '[name].js',
@@ -36,23 +35,7 @@ export default defineConfig({
       },
     },
   },
-  esbuild: {
-    charset: 'ascii',
-  },
   server,
   preview: server,
-  plugins: [
-    react(),
-    tailwindcss(),
-    obfuscatorPlugin({
-      include: ['src/api/diu/*'],
-      apply: 'build',
-      options: {
-        seed: 1,
-        splitStrings: true,
-        stringArrayThreshold: 1,
-        stringArrayEncoding: ['base64'],
-      },
-    }),
-  ],
+  plugins: [react(), tailwindcss()],
 });

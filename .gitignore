@@ -1,8 +1,8 @@
 node_modules
-dev
 coverage
+dist
 tsconfig.tsbuildinfo
 .coverage
 .DS_Store
+.env
 .vite
-.vscode

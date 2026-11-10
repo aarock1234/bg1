@@ -54,7 +54,7 @@ export default function CancelGuests<B extends CancellableBooking>({
   const { loadData, loaderElem } = useDataLoader();
   const [guestsToCancel, setGuestsToCancel] = useState(new Set<BookingGuest>());
 
-  const { name, park, guests } = booking;
+  const { name, guests } = booking;
   const client = booking.type === 'DAS' ? das : ll;
   const isCancelingNone = guestsToCancel.size === 0;
   const isCancelingAll = guestsToCancel.size === guests.length;
@@ -100,7 +100,7 @@ export default function CancelGuests<B extends CancellableBooking>({
   }
 
   return (
-    <Screen title="Cancel Guests" theme={park.theme}>
+    <Screen title="Cancel Guests">
       <h2 className="mt-5">{name}</h2>
       <LandLine land={booking.land} />
       <ReturnTimeCard start={booking.start} end={booking.end} />

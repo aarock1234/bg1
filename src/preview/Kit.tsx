@@ -131,7 +131,7 @@ export default function Kit() {
       <ul className="list">
         <li className="row">
           <span className="row-title">Plain row</span>
-          <span className="row-detail">Detail</span>
+          <span className="text-sm text-muted">Detail</span>
         </li>
         <li>
           <button className="row" onClick={() => flash('Row tapped')}>
@@ -142,7 +142,9 @@ export default function Kit() {
         <li className="row">
           <span className="row-title">
             Row with an action
-            <span className="row-detail block">Second line of detail</span>
+            <span className="block text-sm text-muted">
+              Second line of detail
+            </span>
           </span>
           <Button type="small">Change</Button>
         </li>

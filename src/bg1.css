@@ -28,42 +28,6 @@
   --radius-sheet: 16px;
 
   --breakpoint-xs: 360px;
-
-  /* Park and land colors, which Theme still hands out as bg-<color> and
-     text-<color>-d class names. They are neutral now, so a component that
-     still uses them paints a plain surface with readable text. Don't use them
-     in new code. */
-  --color-bg1-blue: var(--color-surface);
-  --color-bg1-blue-d: var(--color-ink);
-  --color-blue: var(--color-surface);
-  --color-blue-d: var(--color-ink);
-  --color-cyan: var(--color-surface);
-  --color-cyan-d: var(--color-ink);
-  --color-fuchsia: var(--color-surface);
-  --color-fuchsia-d: var(--color-ink);
-  --color-gold: var(--color-surface);
-  --color-gold-d: var(--color-ink);
-  --color-gray: var(--color-surface);
-  --color-gray-d: var(--color-ink);
-  --color-green: var(--color-surface);
-  --color-green-d: var(--color-ink);
-  --color-orange: var(--color-surface);
-  --color-orange-d: var(--color-ink);
-  --color-purple: var(--color-surface);
-  --color-purple-d: var(--color-ink);
-  --color-red: var(--color-surface);
-  --color-red-d: var(--color-ink);
-}
-
-/* Hairline dividers between the items of a plain list. Prefer the `list`
-   component class for new work; this stays for lists that aren't grouped in a
-   container. */
-@utility dividers {
-  @apply divide-y divide-line;
-
-  & > li {
-    @apply py-3;
-  }
 }
 
 /* Safe-area-aware page gutters, for anything that spans the screen's width. */
@@ -412,10 +376,6 @@
 
   .row-title {
     @apply min-w-0 flex-1 font-medium;
-  }
-
-  .row-detail {
-    @apply text-sm text-muted;
   }
 
   .section-title {

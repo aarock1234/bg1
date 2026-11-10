@@ -11,8 +11,7 @@ import kvdb from '@/kvdb';
 export const PARK_KEY = 'bg1.park';
 
 // Stands in until a park has been chosen. It has no ID, which marks it as not
-// chosen, and otherwise looks like the resort's first park so that the
-// loading screen has a theme.
+// chosen, and otherwise looks like the resort's first park.
 function placeholderPark(resort: Resort): Park {
   const [firstPark] = resort.parks;
 

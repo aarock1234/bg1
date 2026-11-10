@@ -145,7 +145,7 @@ export default function DasExperienceList({
   }, [park, das, loadData]);
 
   return (
-    <Screen title="Select Experience" theme={park.theme}>
+    <Screen title="Select Experience">
       <ExperienceSublists experiences={experiences} onSelect={onSelect} />
       {loaderElem}
     </Screen>

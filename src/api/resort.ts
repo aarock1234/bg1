@@ -24,7 +24,6 @@ export type Park = {
   icon: string;
   geo: GeoBounds;
   color: string;
-  theme: Theme;
   dropTimes: ParkTime[];
 };
 
@@ -32,7 +31,6 @@ export type Land = {
   name: string;
   sort: number;
   color: string;
-  theme: Theme;
   park: Park;
 };
 
@@ -50,9 +48,9 @@ export type Experience = {
   highlight?: boolean;
 };
 
-type ParkData = Omit<Park, 'dropTimes' | 'theme'>;
+type ParkData = Omit<Park, 'dropTimes'>;
 
-type LandData = Omit<Land, 'park' | 'theme'> & {
+type LandData = Omit<Land, 'park'> & {
   park: ParkData;
 };
 
@@ -70,18 +68,6 @@ export type ResortData = {
   experiences: Record<string | number, ExperienceData | null | undefined>;
 };
 
-export class Theme {
-  readonly color;
-  readonly bg;
-  readonly text;
-
-  constructor(color: string) {
-    this.color = `var(--color-${color})`;
-    this.bg = `bg-${color}`;
-    this.text = `text-${color}-d`;
-  }
-}
-
 export class InvalidId extends Error {
   name = 'InvalidId';
 
@@ -97,8 +83,8 @@ function uniqueSortedTimes(times: ParkTime[]): ParkTime[] {
 }
 
 // A resort's parks, lands, and experiences. The data objects passed in are
-// completed in place (themes, parks, parsed times) rather than copied, so each
-// park and land stays a single shared object that can be compared by identity.
+// completed in place (parks, parsed times) rather than copied, so each park
+// and land stays a single shared object that can be compared by identity.
 export class Resort {
   readonly id: ResortId;
   readonly parks: Park[];
@@ -161,7 +147,6 @@ export class Resort {
 
   protected completePark(data: ParkData): Park {
     const park = Object.assign(data, {
-      theme: new Theme(data.color),
       dropTimes: [],
     });
 
@@ -179,7 +164,6 @@ export class Resort {
     }
 
     const land = Object.assign(data, {
-      theme: new Theme(data.color),
       park: this.park(data.park.id),
     });
 

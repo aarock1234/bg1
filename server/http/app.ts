@@ -1,5 +1,5 @@
 import { serveStatic } from '@hono/node-server/serve-static';
-import { type Context, Hono } from 'hono';
+import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { readFile } from 'node:fs/promises';
 
@@ -13,6 +13,7 @@ import { createJobRoutes } from '../jobs/routes';
 import type { Worker } from '../jobs/worker';
 import { logger } from '../log';
 import { probe, probeRequestSchema } from '../probe/probe';
+import { readJson } from './read-json';
 import { createRelay } from './relay';
 import { SHORT_LINKS } from './short-links';
 
@@ -51,16 +52,6 @@ function allowAnyOrigin(headers: Headers): void {
 // for a newer version on every load.
 function revalidateOnEveryLoad(headers: Headers): void {
   headers.set('Cache-Control', 'no-cache');
-}
-
-// Returns undefined for a body that isn't JSON, which then fails validation
-// like any other malformed request.
-async function readJson(context: Context): Promise<unknown> {
-  try {
-    return await context.req.json();
-  } catch {
-    return undefined;
-  }
 }
 
 // The API is open and unmetered: it serves a family, not the public, and

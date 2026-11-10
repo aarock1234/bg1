@@ -2,11 +2,8 @@ import { createContext } from 'react';
 
 import { Guest, Guests } from '@/api/ll';
 
-import { Theme } from './ThemeContext';
-
 type PartyPark = {
   name: string;
-  theme: Theme;
 };
 
 type PartyExperience = {
@@ -29,11 +26,6 @@ export default createContext<Party>({
     name: '',
     park: {
       name: '',
-      theme: {
-        bg: '',
-        text: '',
-        color: '',
-      },
     },
   },
 });

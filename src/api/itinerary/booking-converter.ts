@@ -1,4 +1,3 @@
-import { DEFAULT_THEME } from '@/contexts/ThemeContext';
 import { DateTime, parkDate } from '@/datetime';
 
 import { avatarUrl } from '../avatar';
@@ -14,7 +13,7 @@ import type {
   Reservation,
 } from '../itinerary';
 import { InvalidId } from '../resort';
-import type { Experience, Land, Park, Resort, Theme } from '../resort';
+import type { Experience, Land, Park, Resort } from '../resort';
 import type {
   BoardingGroupItem,
   FastPassGuest,
@@ -39,12 +38,6 @@ const BOOKING_TYPE_ORDER: Record<Booking['type'], number> = {
 const LIGHTNING_LANE_SUBTYPES: Record<string, LightningLane['subtype']> = {
   FLEX: 'MP',
   STANDARD: 'SP',
-};
-
-const NO_THEME: Theme = {
-  color: '',
-  bg: '',
-  text: '',
 };
 
 type ExperienceFields = Pick<
@@ -133,7 +126,6 @@ function unknownPark(id: string, name: string): Park {
       w: 0,
     },
     color: '',
-    theme: DEFAULT_THEME,
     dropTimes: [],
   };
 }
@@ -143,7 +135,6 @@ function unknownLand(park: Park, name = ''): Land {
     name,
     sort: 0,
     color: '',
-    theme: NO_THEME,
     park,
   };
 }

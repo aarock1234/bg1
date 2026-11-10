@@ -5,7 +5,6 @@ import { Park } from '@/api/resort';
 import { Day } from '@/components/Day';
 import Tab from '@/components/Tab';
 import PlansContext from '@/contexts/PlansContext';
-import { DEFAULT_THEME } from '@/contexts/ThemeContext';
 import { parkDate } from '@/datetime';
 
 import { ScreenProps } from '../../Screen';
@@ -148,7 +147,6 @@ export default function Plans(props: Partial<ScreenProps>) {
     <Tab
       title="Your Plans"
       buttons={<RefreshButton name="Plans" onClick={refreshPlans} />}
-      theme={DEFAULT_THEME}
       {...props}
     >
       <PlansList plans={plans} />

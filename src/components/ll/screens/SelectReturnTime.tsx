@@ -593,7 +593,6 @@ export default function SelectReturnTime<B extends Offer['booking']>({
           <BookingDate booking={offer} />
         </>
       }
-      theme={offer.experience.park.theme}
     >
       <h2 className="mt-5">{offer.experience.name}</h2>
       <LandLine land={offer.experience.land} />

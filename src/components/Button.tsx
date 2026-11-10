@@ -23,51 +23,29 @@ type BackTarget<P> = {
   props?: Partial<P>;
 };
 
-// Buttons used to take their colors and border from the caller. They are
-// monochrome now, so these props are accepted and ignored.
-type LegacyStyleProps = {
-  color?: string;
-  border?: string;
-};
-
 type ButtonProps<P> = Omit<
   React.HTMLProps<HTMLButtonElement>,
   'type' | 'onClick'
-> &
-  LegacyStyleProps & {
-    onClick?: () => void | Promise<void>;
+> & {
+  onClick?: () => void | Promise<void>;
 
-    // The button's size.
-    type?: keyof typeof SIZE_CLASSES;
+  // The button's size.
+  type?: keyof typeof SIZE_CLASSES;
 
-    // How much the button stands out. A screen has one primary button at most.
-    variant?: ButtonVariant;
+  // How much the button stands out. A screen has one primary button at most.
+  variant?: ButtonVariant;
 
-    back?: boolean | BackTarget<P>;
-  };
+  back?: boolean | BackTarget<P>;
+};
 
-function withoutLegacyStyleProps<T extends LegacyStyleProps>(
-  props: T
-): Omit<T, keyof LegacyStyleProps> {
-  const remainingProps = {
-    ...props,
-  };
-
-  delete remainingProps.color;
-  delete remainingProps.border;
-
-  return remainingProps;
-}
-
-export default function Button<P>(props: ButtonProps<P>) {
-  const {
-    type = 'normal',
-    variant = 'secondary',
-    back,
-    onClick,
-    className = '',
-    ...attrs
-  } = withoutLegacyStyleProps(props);
+export default function Button<P>({
+  type = 'normal',
+  variant = 'secondary',
+  back,
+  onClick,
+  className = '',
+  ...attrs
+}: ButtonProps<P>) {
   const { goBack } = use(NavContext);
 
   // A back button still runs its click handler when there is no screen to go

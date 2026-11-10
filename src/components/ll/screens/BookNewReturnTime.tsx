@@ -76,7 +76,6 @@ export default function BookNewReturnTime({
           <BookingDate booking={booking} />
         </>
       }
-      theme={experience.park.theme}
       buttons={<YourDayButton />}
     >
       <h2 className="mt-5">{experience.name}</h2>

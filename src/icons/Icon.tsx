@@ -4,10 +4,6 @@ const HEIGHT_CLASS_PATTERN = /\b(h|size)-\S/;
 export type IconProps = {
   className?: string;
 
-  // Draws the icon at full strength, whatever the color of the text around
-  // it. Icons used to be painted in the park's color; they are monochrome now.
-  themed?: boolean;
-
   // Fills the shape in, as the "on" state of an icon that toggles.
   filled?: boolean;
 
@@ -30,12 +26,9 @@ function withDefaultSize(className: string): string {
 export default function Icon({
   children,
   className = '',
-  themed,
   filled,
   title,
 }: IconElementProps) {
-  const colorClass = themed ? ' text-ink' : '';
-
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
@@ -45,7 +38,7 @@ export default function Icon({
       strokeWidth={2}
       strokeLinecap="round"
       strokeLinejoin="round"
-      className={`shrink-0 ${withDefaultSize(className)}${colorClass}`}
+      className={`shrink-0 ${withDefaultSize(className)}`}
       role="img"
     >
       {title && <title>{title}</title>}

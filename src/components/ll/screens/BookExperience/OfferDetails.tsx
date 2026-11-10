@@ -7,7 +7,7 @@ import ClientsContext from '@/contexts/ClientsContext';
 import NavContext from '@/contexts/NavContext';
 
 import OverlappingPlans from '../../OverlappingPlans';
-import ReturnTime from '../../ReturnTime';
+import { ReturnTimeCard } from '../../ReturnTime';
 import SelectReturnTime from '../SelectReturnTime';
 import PartyList from './PartyList';
 
@@ -39,16 +39,14 @@ export default function OfferDetails({
 
   return (
     <>
-      <div className="card mt-4 py-3 *:mt-0">
-        <ReturnTime
-          {...offer}
-          button={
-            timeSelect && (
-              <ChangeTimeButton offer={offer} onOfferChange={onOfferChange} />
-            )
-          }
-        />
-      </div>
+      <ReturnTimeCard
+        {...offer}
+        button={
+          timeSelect && (
+            <ChangeTimeButton offer={offer} onOfferChange={onOfferChange} />
+          )
+        }
+      />
       {offer.changed && <Alert title="Return Time Changed" />}
       <OverlappingPlans offer={offer} />
       <PartyList />

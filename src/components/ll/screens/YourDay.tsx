@@ -49,14 +49,9 @@ export default function YourDay({ date, unmodifiable }: YourDayProps) {
 
   const dayPlans = plans.filter(plan => parkDate(plan.start) === date);
   const listedPlans = dayPlans.filter(plan => plan.type !== 'APR');
-  const [firstPlan] = dayPlans;
 
   return (
-    <Screen
-      title="Your Day"
-      subhead={<Day>{date}</Day>}
-      theme={firstPlan?.park.theme}
-    >
+    <Screen title="Your Day" subhead={<Day>{date}</Day>}>
       <div className="mt-4">
         <DayPlans plans={listedPlans} unmodifiable={unmodifiable} />
       </div>

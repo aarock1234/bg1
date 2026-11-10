@@ -223,7 +223,6 @@ export const lttRes: Reservation = {
     park: mk,
     sort: 0,
     color: '',
-    theme: { bg: '', text: '', color: '' },
   },
   park: mk,
   start: new DateTime(TODAY, new ParkTime(11, 15)),

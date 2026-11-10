@@ -430,7 +430,6 @@ export default function BookExperience({ experience }: BookExperienceProps) {
   return (
     <Screen
       title="Lightning Lane"
-      theme={experience.park.theme}
       buttons={
         <>
           <YourDayButton />

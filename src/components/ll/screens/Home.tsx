@@ -2,11 +2,9 @@ import { use, useEffect, useRef } from 'react';
 
 import withTabs from '@/components/withTabs';
 import ExperiencesContext from '@/contexts/ExperiencesContext';
-import ParkContext from '@/contexts/ParkContext';
 import PlansContext from '@/contexts/PlansContext';
 import RebookingContext from '@/contexts/RebookingContext';
 import { TabDef } from '@/contexts/TabContext';
-import ThemeContext from '@/contexts/ThemeContext';
 import useScreenState from '@/hooks/useScreenState';
 import CalendarIcon from '@/icons/CalendarIcon';
 import ClockIcon from '@/icons/ClockIcon';
@@ -70,7 +68,6 @@ type ActiveTabProps = {
 function ActiveTab({ tab }: ActiveTabProps) {
   const { isActiveScreen } = useScreenState();
   const rebooking = use(RebookingContext);
-  const { park } = use(ParkContext);
   const { refreshExperiences } = use(ExperiencesContext);
   const { refreshPlans } = use(PlansContext);
   const ref = useRef<HTMLDivElement | null>(null);
@@ -96,11 +93,7 @@ function ActiveTab({ tab }: ActiveTabProps) {
     }
   }, [rebooking]);
 
-  return (
-    <ThemeContext value={park.theme}>
-      <tab.component ref={ref} />
-    </ThemeContext>
-  );
+  return <tab.component ref={ref} />;
 }
 
 const Home = Object.assign(

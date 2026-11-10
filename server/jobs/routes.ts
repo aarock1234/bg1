@@ -4,6 +4,7 @@ import { z } from 'zod';
 
 import { describeError } from '../describe-error';
 import { ApiError, errorResponse, invalidRequest } from '../http/api-error';
+import { readJson } from '../http/read-json';
 import { logger } from '../log';
 import { JobRejected, createJob, createJobRequestSchema } from './create';
 import type { Job } from './job';
@@ -41,14 +42,6 @@ function notFound(): ApiError {
 
 function unauthorized(): ApiError {
   return new ApiError(401, 'unauthorized', "this job's token is required");
-}
-
-async function readJson(context: Context): Promise<unknown> {
-  try {
-    return await context.req.json();
-  } catch {
-    return undefined;
-  }
 }
 
 // Finds the job a request names and checks that the request carries that

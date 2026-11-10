@@ -31,7 +31,6 @@ function LoadingOffer({ booking, loaderElem }: LoadingOfferProps) {
   return (
     <Screen
       title="Select Return Time"
-      theme={booking.park.theme}
       subhead={<BookingDate booking={booking} />}
       buttons={
         <>

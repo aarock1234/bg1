@@ -149,7 +149,7 @@ export default function DasSelection({ park, party }: DasSelectionProps) {
   }
 
   return (
-    <Screen title="DAS Selection" theme={park.theme}>
+    <Screen title="DAS Selection">
       <h3>Experience</h3>
       <ExperienceChoice experience={experience} onChoose={chooseExperience} />
       <section>

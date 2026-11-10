@@ -2,6 +2,7 @@ import { use, useLayoutEffect } from 'react';
 
 import { DasParty, Guest } from '@/api/das';
 import { Booking, DasBooking, isDAS } from '@/api/itinerary';
+import Avatar from '@/components/Avatar';
 import Button from '@/components/Button';
 import Screen from '@/components/Screen';
 import { Time } from '@/components/Time';
@@ -11,8 +12,6 @@ import PlansContext from '@/contexts/PlansContext';
 
 import BookingDetails from './BookingDetails';
 import DasSelection from './DasSelection';
-
-const AVATAR_SIZE_PX = 36;
 
 type DasPartyListProps = {
   parties: DasParty[];
@@ -47,27 +46,12 @@ type PartyRowProps = {
   children: React.ReactNode;
 };
 
-// A row for one DAS party, which goes by its primary guest: their picture (or
-// their initial when they don't have one), then the row's content.
+// A row for one DAS party, which goes by its primary guest: their avatar,
+// then the row's content.
 function PartyRow({ primaryGuest, children }: PartyRowProps) {
   return (
     <li className="row">
-      <span
-        className="grid size-9 shrink-0 place-items-center overflow-hidden rounded-full border border-line bg-pressed text-sm font-semibold text-ink"
-        aria-hidden="true"
-      >
-        {primaryGuest.avatarImageUrl ? (
-          <img
-            src={primaryGuest.avatarImageUrl}
-            alt=""
-            width={AVATAR_SIZE_PX}
-            height={AVATAR_SIZE_PX}
-            className="size-full object-cover"
-          />
-        ) : (
-          primaryGuest.name[0]
-        )}
-      </span>
+      <Avatar guest={primaryGuest} />
       {children}
     </li>
   );
@@ -212,10 +196,7 @@ export default function DasPartyList({ parties }: DasPartyListProps) {
   });
 
   return (
-    <Screen
-      title={`DAS ${parties.length === 1 ? 'Selection' : 'Parties'}`}
-      theme={park.theme}
-    >
+    <Screen title={`DAS ${parties.length === 1 ? 'Selection' : 'Parties'}`}>
       {loaderElem ?? (
         <PartyLists
           hasParties={parties.length > 0}

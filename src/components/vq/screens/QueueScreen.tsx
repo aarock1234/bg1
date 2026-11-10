@@ -16,7 +16,7 @@ export default function QueueScreen({
   children,
 }: QueueScreenProps) {
   return (
-    <Screen title={title} theme={queue.park?.theme}>
+    <Screen title={title}>
       <h2 className="mt-5">{queue.name}</h2>
       {queue.park && <LandLine land={queue.park} />}
       {children}

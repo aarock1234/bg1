@@ -23,7 +23,6 @@ import ClientsContext from '@/contexts/ClientsContext';
 import DasPartiesContext from '@/contexts/DasPartiesContext';
 import NavContext from '@/contexts/NavContext';
 import ResortContext from '@/contexts/ResortContext';
-import { DEFAULT_THEME, Theme } from '@/contexts/ThemeContext';
 import { parkDate } from '@/datetime';
 
 import { ExperienceList } from '../ExperienceList';
@@ -75,22 +74,6 @@ function groupChoicesByPark(booking: Booking, parks: Park[]): ParkChoices[] {
         experiences,
       };
     });
-}
-
-// A booking with choices takes a park's theme only when every choice is in
-// that one park.
-function screenTheme(booking: Booking, parkChoices: ParkChoices[]): Theme {
-  if (!booking.choices) {
-    return booking.park.theme;
-  }
-
-  const [firstParkChoices] = parkChoices;
-
-  if (parkChoices.length === 1 && firstParkChoices) {
-    return firstParkChoices.park.theme;
-  }
-
-  return DEFAULT_THEME;
 }
 
 // Returns the guest on a DAS booking who is the primary guest of one of the
@@ -264,7 +247,6 @@ export default function BookingDetails({
   return (
     <Screen
       title={`Your ${TITLES[booking.type]}`}
-      theme={screenTheme(booking, parkChoices)}
       buttons={!unmodifiable && !isNew && <ModifyButton booking={booking} />}
       subhead={<Day>{parkDate(booking.start)}</Day>}
     >

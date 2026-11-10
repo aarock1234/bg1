@@ -9,7 +9,7 @@ const REJECTION_MESSAGES: Record<string, string> = {
   login_expired: 'Your Disney login has expired. Sign in again to start.',
   invalid_time_range: 'The latest time has to be after the earliest.',
   window_over: 'That time range is already over.',
-  date_not_bookable: "Auto booking isn't available for that date.",
+  date_not_bookable: "Watching isn't available for that date.",
   unknown_experience:
     "BG1's server doesn't know this experience yet. Try again later.",
   too_many_guests: 'That party is too large to book at once.',
@@ -18,7 +18,7 @@ const REJECTION_MESSAGES: Record<string, string> = {
 // The status of a request that never got an answer from the server.
 const STATUS_UNREACHABLE = 0;
 
-// Describes why the server's latest check didn't book anything.
+// Describes why the server's latest check found nothing in range.
 export function attemptMessage(attempt: LastAttempt): string {
   switch (attempt.kind) {
     case 'unavailable':
@@ -27,8 +27,8 @@ export function attemptMessage(attempt: LastAttempt): string {
       return "Disney's offer didn't include everyone in your party.";
     case 'outside-range':
       return attempt.offeredTime
-        ? `The latest return time offered was ${formatTime(attempt.offeredTime)}, outside your range.`
-        : 'The return time offered was outside your range.';
+        ? `The next return time is ${formatTime(attempt.offeredTime)}, outside your range.`
+        : 'The next return time is outside your range.';
     case 'interrupted':
       return "Couldn't reach Disney. Trying again.";
     default: {

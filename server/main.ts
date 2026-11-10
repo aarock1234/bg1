@@ -17,6 +17,7 @@ async function main(): Promise<void> {
   const worker = startWorker({
     action: env.AUTO_BOOK_ACTION,
     pollIntervalMs: env.AUTO_BOOK_POLL_INTERVAL_MS,
+    watchPollIntervalMs: env.WATCH_POLL_INTERVAL_MS,
     requestsPerSecond:
       env.DISNEY_REQUESTS_PER_SECOND ??
       minimumRequestsPerSecond(env.AUTO_BOOK_POLL_INTERVAL_MS),

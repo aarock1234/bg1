@@ -118,7 +118,7 @@ function Progress({ children }: ProgressProps) {
 function Resuming() {
   return (
     <Progress>
-      <p className="my-0 text-[15px] font-medium">Checking on your search…</p>
+      <p className="my-0 text-[15px] font-medium">Checking on your watch…</p>
     </Progress>
   );
 }
@@ -128,11 +128,13 @@ function Searching({ job }: SearchingProps) {
 
   return (
     <Progress>
-      <p className="my-0 text-[15px] font-medium">Looking for a return time…</p>
+      <p className="my-0 text-[15px] font-medium">
+        Watching for a return time…
+      </p>
       <p className="note mt-1 mb-0">
         {lastAttempt && `${attemptMessage(lastAttempt)} `}
         Checked {attempts} {attempts === 1 ? 'time' : 'times'} so far. You can
-        close BG1; it keeps looking.
+        close BG1; it keeps watching.
       </p>
     </Progress>
   );
@@ -142,7 +144,7 @@ function Searching({ job }: SearchingProps) {
 // stop it.
 function StopFailure({ error }: StopFailureProps) {
   return (
-    <Alert title="Couldn't Stop Auto Booking" className="bg-pressed">
+    <Alert title="Couldn't Stop Watching" className="bg-pressed">
       <p>{rejectionMessage(error)}</p>
     </Alert>
   );
@@ -152,7 +154,7 @@ function StopFailure({ error }: StopFailureProps) {
 function Outcome({ state }: OutcomeProps) {
   if (state.kind === 'rejected') {
     return (
-      <Alert title="Auto Booking Didn't Start" className="bg-pressed">
+      <Alert title="Watching Didn't Start" className="bg-pressed">
         <p>{rejectionMessage(state.error)}</p>
       </Alert>
     );
@@ -195,7 +197,7 @@ function Outcome({ state }: OutcomeProps) {
 
   if (failure) {
     return (
-      <Alert title="Auto Booking Stopped" className="bg-pressed">
+      <Alert title="Watching Stopped" className="bg-pressed">
         <p>{failure.message}</p>
       </Alert>
     );
@@ -252,11 +254,11 @@ export default function AutoBook(props: AutoBookProps) {
 
   return (
     <section className="card mt-6">
-      <h3 className="mt-0">Auto Booking</h3>
+      <h3 className="mt-0">Watch for a Return Time</h3>
       <p className="note mt-1">
-        BG1 keeps checking, even with your phone closed, and tells you the
-        moment a return time within your range comes up, so you can book it in
-        the Disney app.
+        BG1 keeps checking, even with your phone closed, and tells you when the
+        next return time falls within your range. Then book it in the Disney
+        app.
         {canNotify() && ' You get a notification when it does.'}
       </p>
       <div className="mt-4 grid grid-cols-2 gap-3">
@@ -286,7 +288,7 @@ export default function AutoBook(props: AutoBookProps) {
         disabled={isWaiting}
         onClick={toggleSearch}
       >
-        {isSearching ? 'Stop Auto Booking' : 'Start Auto Booking'}
+        {isSearching ? 'Stop Watching' : 'Start Watching'}
       </Button>
     </section>
   );

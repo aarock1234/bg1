@@ -26,6 +26,31 @@ when done.
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (with one-line reason) |
 REJECTED (with one-line rationale)
 
+## At the park on 2026-11-10: booking is off
+
+The first real use showed that every Lightning Lane offer BG1 asks for is
+answered with 403. Disney rejects the bot-protection tokens BG1 gets from the
+upstream backend on offers and bookings, from any address and with any app
+identity, while still accepting them for the party and needing none for the
+tip board. Upstream removed booking for the same reason in November 2025
+(`6c069e3`, `3eaf2a4` on `origin/main`); plans 001, 004 and 005 improve a
+booking path Disney does not currently allow.
+
+What changed that day:
+
+- Server jobs watch the tip board and notify instead of booking
+  (`366eb31`, `AUTO_BOOK_ACTION=notify`, `WATCH_POLL_INTERVAL_MS`). Verified
+  against Disney: a watch job ended `available` with a real return time.
+- Push notifications had never been sent: `web-push` 4 has no default
+  export (`611e4f9`). Verified that a push now reaches Apple's push service;
+  delivery to a phone is unverified.
+- Proxies, imitating the current official app and a token captured from it
+  were tried and removed (`2b57b02`, `fb1b9d3`). BG1 does not try to get
+  past Disney's bot protection.
+- The booking screen points to the Disney app when Disney refuses an offer,
+  and the panel says "watch" rather than "book". Disney publishes no link
+  into either app's Lightning Lane screens, so the link is the store page.
+
 ## What was done, and what is still unverified
 
 All twelve plans were executed on 2026-11-10 and are live.

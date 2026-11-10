@@ -27,9 +27,11 @@ export type DisneyAppLink = {
   url: string;
 };
 
-// Where to send the guest to open the resort's app. The store page offers an
-// Open button when the app is installed, which is the one route into the app
-// that works on every phone.
+// Where to send the guest to open the resort's app. Disney publishes no link
+// into either app's Lightning Lane screens: Walt Disney World's universal
+// link file only opens the app for pass renewals, and Disneyland doesn't
+// publish one. The store page offers an Open button when the app is
+// installed, which works on every phone.
 export function disneyAppLink(resortId: ResortId): DisneyAppLink {
   const app = DISNEY_APPS[resortId];
   const isAndroid = navigator.userAgent.includes('Android');

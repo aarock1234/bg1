@@ -1,6 +1,7 @@
 import { use, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { AuthData, ReauthNeeded, authStore } from '@/api/auth';
+import { requestStatus } from '@/api/client';
 import { isLLMP } from '@/api/itinerary';
 import {
   Guest,
@@ -38,6 +39,7 @@ import BookingDate from '../BookingDate';
 import RebookingHeader from '../RebookingHeader';
 import YourDayButton from '../YourDayButton';
 import AutoBook from './BookExperience/AutoBook';
+import BookInDisneyApp from './BookExperience/BookInDisneyApp';
 import NoEligibleGuests from './BookExperience/NoEligibleGuests';
 import NoGuestsFound from './BookExperience/NoGuestsFound';
 import NoReservationsAvailable from './BookExperience/NoReservationsAvailable';
@@ -49,6 +51,8 @@ import RefreshButton from './RefreshButton';
 // answered that it has none to give.
 type OfferState = Offer | null | undefined;
 
+const STATUS_FORBIDDEN = 403;
+
 type BookExperienceProps = {
   experience: OfferExperience;
 };
@@ -57,6 +61,10 @@ type BookingPanelProps = {
   party: Party;
   offer: OfferState;
   isModifying: boolean;
+
+  // Disney answered the request for an offer with 403, as it does for every
+  // offer BG1 asks for at the moment.
+  isOfferRefused: boolean;
 
   // Left out while modifying a reservation, which the server can't do.
   autoBook?: AutoBookPanel;
@@ -118,7 +126,11 @@ function BookingPanel(props: BookingPanelProps) {
   if (offer === null) {
     return (
       <>
-        <NoReservationsAvailable />
+        {props.isOfferRefused ? (
+          <BookInDisneyApp />
+        ) : (
+          <NoReservationsAvailable />
+        )}
         {autoBook && <AutoBook {...autoBook} />}
       </>
     );
@@ -148,6 +160,7 @@ export default function BookExperience({ experience }: BookExperienceProps) {
   const [guests, setGuests] = useState<Guests>();
   const [selected, setSelected] = useState<Guest[]>([]);
   const [offer, setOffer] = useState<OfferState>();
+  const [isOfferRefused, setIsOfferRefused] = useState(false);
   const [parkHours, setParkHours] = useState<ParkHours>();
   const { loadData, loaderElem } = useDataLoader();
 
@@ -325,6 +338,7 @@ export default function BookExperience({ experience }: BookExperienceProps) {
             }
 
             setOffer(newOffer);
+            setIsOfferRefused(false);
 
             if (newOffer.parkHours) {
               setParkHours(newOffer.parkHours);
@@ -338,6 +352,13 @@ export default function BookExperience({ experience }: BookExperienceProps) {
 
             if (error instanceof OfferError) {
               updateParty(error.guests);
+              return;
+            }
+
+            // Disney refuses BG1's offers outright at the moment. That is
+            // explained on screen rather than reported as a failed request.
+            if (requestStatus(error) === STATUS_FORBIDDEN) {
+              setIsOfferRefused(true);
               return;
             }
 
@@ -454,6 +475,7 @@ export default function BookExperience({ experience }: BookExperienceProps) {
             party={party}
             offer={offer}
             isModifying={!!existingBooking}
+            isOfferRefused={isOfferRefused}
             autoBook={existingBooking ? undefined : autoBookPanel}
             onRefreshParty={loadParty}
             onOfferChange={setOffer}

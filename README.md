@@ -9,11 +9,15 @@ BG1 is an unofficial, experimental client for obtaining Lightning Lane Multi Pas
 This fork tracks the behavior of the newest upstream builds, including Lightning Lane booking, and changes two things.
 
 - **It runs on its own site.** Open `https://bg1.abdels.dev/wdw` or `/dlr` for Lightning Lanes, and `/wdw/vq` or `/dlr/vq` for virtual queues. There is nothing to install; adding the page to a phone's Home Screen makes it an app. The userscript still works on Disney's pages but is no longer the main way in.
-- **It adds auto booking.** Pick a range of return times on the booking screen and BG1's server keeps checking until it can book one, with the phone closed, then sends a notification.
+- **It adds watching.** Pick a range of return times on the booking screen and BG1's server keeps checking, with the phone closed, until the experience's next Lightning Lane return time falls within it, then sends a notification so you can book it in the Disney app.
+
+### Booking is off
+
+Disney answers every Lightning Lane offer BG1 asks for with 403: it rejects the bot-protection tokens BG1 can get, as it has since November 2025, when upstream removed booking for the same reason. Disney still answers the tip board and the party, so BG1 lists experiences, watches return times and notifies, and the booking screen points to the Disney app when an offer is refused. BG1 does not try to get past Disney's bot protection. If Disney accepts BG1's offers again, the booking screen books as before, and `AUTO_BOOK_ACTION=book` makes server jobs book instead of notify.
 
 ### How it works
 
-Browsers don't let a page on another site call Disney, so the app sends each request to the server's relay (`/api/relay/<disney host>/...`), which passes it on with the guest's own login. An auto-booking search is handed to the server as a job: the server stores it in Postgres, runs it until it books, fails, runs out of time or is stopped, and sends a web push notification when it ends. The device keeps the job's token, which is the only way to check on or stop it.
+Browsers don't let a page on another site call Disney, so the app sends each request to the server's relay (`/api/relay/<disney host>/...`), which passes it on with the guest's own login. A watch is handed to the server as a job: the server stores it in Postgres, reads the park's tip board every `WATCH_POLL_INTERVAL_MS` until the next return time is in range, the window or login runs out, or it is stopped, and sends a web push notification when it ends. The device keeps the job's token, which is the only way to check on or stop it.
 
 ## Development
 
@@ -43,7 +47,9 @@ Besides hosting the app, the server runs auto-book jobs: the app hands over a se
 | `VAPID_PUBLIC_KEY`           | yes      |                                    | Web Push public key, base64url encoded.                                                                  |
 | `VAPID_PRIVATE_KEY`          | yes      |                                    | Web Push private key, base64url encoded.                                                                 |
 | `VAPID_SUBJECT`              | yes      |                                    | The contact push services are given: an `https:` or `mailto:` URL.                                       |
-| `AUTO_BOOK_POLL_INTERVAL_MS` | no       | `1000`                             | How long a job waits between two checks. At least `100`.                                                 |
+| `AUTO_BOOK_ACTION`           | no       | `notify`                           | `notify` watches the tip board and tells the guest; `book` books, which Disney currently refuses.        |
+| `WATCH_POLL_INTERVAL_MS`     | no       | `15000`                            | How long a watching job waits between two looks at the tip board. At least `5000`.                       |
+| `AUTO_BOOK_POLL_INTERVAL_MS` | no       | `1000`                             | How long a booking job waits between two checks. At least `100`.                                         |
 | `DISNEY_REQUESTS_PER_SECOND` | no       | the lowest safe value for the pace | How many requests one job may send Disney per second before it stops itself. `10` at the default pace.   |
 | `DISNEY_PROXIES`             | no       | none                               | `host:port:username:password` proxies, one per line or separated by commas. The probe tries one of them. |
 | `DISNEY_USE_PROXIES`         | no       | `false`                            | `true` sends each job's requests to Disney through one of `DISNEY_PROXIES`.                              |

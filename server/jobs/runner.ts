@@ -99,7 +99,11 @@ export type RunnerOptions = {
   owner: string;
   action: JobAction;
   leaseMs: number;
+
+  // How long to wait between two checks when booking, and between two looks
+  // at the tip board when only notifying.
   pollIntervalMs: number;
+  watchPollIntervalMs: number;
   requestsPerSecond: number;
 
   // The proxies to send requests to Disney through. With none, requests go
@@ -273,7 +277,7 @@ class JobRun {
         latest: ParkTime.from(job.latest),
       },
       signal: this.controller.signal,
-      pollIntervalMs: options.pollIntervalMs,
+      pollIntervalMs: options.watchPollIntervalMs,
       onAttempt: attempt => this.recordAttempt(attempt),
     });
   }

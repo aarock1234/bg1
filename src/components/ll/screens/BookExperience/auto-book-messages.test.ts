@@ -41,7 +41,7 @@ describe('attemptMessage()', () => {
     },
     {
       kind: 'outside-range',
-      message: 'The return time offered was outside your range.',
+      message: 'The next return time is outside your range.',
     },
     {
       kind: 'interrupted',
@@ -64,7 +64,7 @@ describe('attemptMessage()', () => {
     };
 
     expect(attemptMessage(attempt)).toBe(
-      'The latest return time offered was 3:15 PM, outside your range.'
+      'The next return time is 3:15 PM, outside your range.'
     );
   });
 });
@@ -85,7 +85,7 @@ describe('rejectionMessage()', () => {
     },
     {
       code: 'date_not_bookable',
-      message: "Auto booking isn't available for that date.",
+      message: "Watching isn't available for that date.",
     },
     {
       code: 'unknown_experience',

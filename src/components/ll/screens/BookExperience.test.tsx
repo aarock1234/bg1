@@ -271,6 +271,20 @@ describe('BookExperience', () => {
     see('No Reservations Available');
   });
 
+  it('points to the Disney app when Disney refuses the offer', async () => {
+    ll.offer.mockRejectedValueOnce(
+      new RequestError({
+        ok: false,
+        status: 403,
+        data: {},
+      })
+    );
+    await renderComponent();
+    see('Book in the My Disney Experience app');
+    expect(screen.queryByText('Book Lightning Lane')).not.toBeInTheDocument();
+    expect(errorMock).not.toHaveBeenCalled();
+  });
+
   it('shows "No Eligible Guests" on OfferError with no eligible guests', async () => {
     ll.offer.mockRejectedValueOnce(
       new OfferError({

@@ -53,6 +53,12 @@ The design preview, which shows any screen with made-up data, is at
   gone.** It is the only way to stop a search that can still book.
 - **A search retries everything that retrying can fix.** Only its time
   window, its login, a final error or the guest ends it.
+- **Booking is off; jobs watch and notify.** Disney answers BG1's Lightning
+  Lane offers with 403 because it rejects the bot-protection tokens BG1 can
+  get. Server jobs therefore watch the tip board and notify
+  (`AUTO_BOOK_ACTION=notify`), and the booking screen points to the Disney
+  app when an offer is refused. Never try to obtain, generate, replay or
+  otherwise work around Disney's bot-protection tokens.
 
 ## Code style
 

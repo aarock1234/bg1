@@ -7,6 +7,7 @@ import { ModifyNotAllowed, OfferError } from '../ll';
 import type {
   Guest,
   Guests,
+  HourlyTimes,
   LLClient,
   LLMP,
   Offer,
@@ -68,7 +69,10 @@ export type AutoBookAttempt = Miss & {
 };
 
 export type AutoBookRequest = {
-  ll: Pick<LLClient, 'offer' | 'book' | 'cancelBooking'>;
+  ll: Pick<
+    LLClient,
+    'rules' | 'offer' | 'times' | 'changeOfferTime' | 'book' | 'cancelBooking'
+  >;
   experience: OfferExperience;
   guests: Guest[];
   range: ReturnTimeRange;
@@ -188,20 +192,64 @@ function wait(ms: number, signal: AbortSignal): Promise<void> {
   });
 }
 
+function earliestTimeWithin(
+  times: HourlyTimes,
+  range: ReturnTimeRange
+): ParkTime | undefined {
+  let earliest: ParkTime | undefined;
+
+  for (const time of times.flat()) {
+    if (!isWithinRange(time, range)) {
+      continue;
+    }
+
+    if (earliest === undefined || time < earliest) {
+      earliest = time;
+    }
+  }
+
+  return earliest;
+}
+
+// Where guests can choose their return time, an offer outside the range is
+// moved to the earliest available time inside it. The offer comes back as it
+// was when it is already in range, when times can't be chosen, or when no
+// time in range is available. Disney may answer the move with a different
+// time than asked for, so the caller still has to check the result.
+async function movedIntoRange(
+  offer: Offer<LLMP | undefined>,
+  request: AutoBookRequest
+): Promise<Offer<LLMP | undefined>> {
+  const { ll, range } = request;
+
+  if (!ll.rules.timeSelect || isWithinRange(offer.start.time, range)) {
+    return offer;
+  }
+
+  const time = earliestTimeWithin(await ll.times(offer), range);
+
+  if (!time) {
+    return offer;
+  }
+
+  return ll.changeOfferTime(offer, time);
+}
+
 async function attemptBooking(
   request: AutoBookRequest
 ): Promise<Booked | Miss> {
   const { ll, experience, guests, range, offerOptions, signal } = request;
 
   try {
-    const offer = await ll.offer(experience, guests, offerOptions);
+    const firstOffer = await ll.offer(experience, guests, offerOptions);
 
-    if (!coversEveryGuest(offer, guests)) {
+    if (!coversEveryGuest(firstOffer, guests)) {
       return {
         kind: 'party-incomplete',
       };
     }
 
+    const offer = await movedIntoRange(firstOffer, request);
     const offeredTime = offer.start.time;
 
     if (!isWithinRange(offeredTime, range)) {

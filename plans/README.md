@@ -10,21 +10,58 @@ when done.
 
 | Plan | Title                                                                    | Priority | Effort | Depends on          | Status |
 | ---- | ------------------------------------------------------------------------ | -------- | ------ | ------------------- | ------ |
-| 001  | A server search survives trouble instead of ending on the first surprise | P1       | M      | —                   | TODO   |
-| 002  | The app never loses track of a search it handed to the server            | P1       | M      | —                   | TODO   |
-| 003  | The Home Screen app opens the app, and notifications behave              | P1       | S      | —                   | TODO   |
-| 004  | A search books the whole party or keeps waiting                          | P2       | S      | 001                 | TODO   |
-| 005  | At Walt Disney World, a search picks a return time inside the range      | P2       | M      | 001, 004            | TODO   |
-| 006  | The relay only ever reaches Disney, and its answers can't run as pages   | P2       | S      | —                   | TODO   |
-| 007  | Logs never carry Disney's answers, guest data or database parameters     | P2       | S      | after 001, 006      | TODO   |
-| 008  | Jobs are run once, forgotten when old, and leave nothing open            | P3       | M      | after 001, 004, 007 | TODO   |
-| 009  | Deploy settings live in the format Railway will keep reading             | P2       | S      | —                   | TODO   |
-| 010  | Small faults fixed, the docs tell the truth, and every file is checked   | P3       | M      | after 001–009       | TODO   |
-| 011  | Code that does nothing is gone                                           | P3       | M      | after 001–008       | TODO   |
-| 012  | The code that books on its own is covered by tests                       | P3       | L      | 001, 002, 004, 005  | TODO   |
+| 001  | A server search survives trouble instead of ending on the first surprise | P1       | M      | —                   | DONE   |
+| 002  | The app never loses track of a search it handed to the server            | P1       | M      | —                   | DONE   |
+| 003  | The Home Screen app opens the app, and notifications behave              | P1       | S      | —                   | DONE   |
+| 004  | A search books the whole party or keeps waiting                          | P2       | S      | 001                 | DONE   |
+| 005  | At Walt Disney World, a search picks a return time inside the range      | P2       | M      | 001, 004            | DONE   |
+| 006  | The relay only ever reaches Disney, and its answers can't run as pages   | P2       | S      | —                   | DONE   |
+| 007  | Logs never carry Disney's answers, guest data or database parameters     | P2       | S      | after 001, 006      | DONE   |
+| 008  | Jobs are run once, forgotten when old, and leave nothing open            | P3       | M      | after 001, 004, 007 | DONE   |
+| 009  | Deploy settings live in the format Railway will keep reading             | P2       | S      | —                   | DONE   |
+| 010  | Small faults fixed, the docs tell the truth, and every file is checked   | P3       | M      | after 001–009       | DONE   |
+| 011  | Code that does nothing is gone                                           | P3       | M      | after 001–008       | DONE   |
+| 012  | The code that books on its own is covered by tests                       | P3       | L      | 001, 002, 004, 005  | DONE   |
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (with one-line reason) |
 REJECTED (with one-line rationale)
+
+## What was done, and what is still unverified
+
+All twelve plans were executed on 2026-11-10 and are live.
+
+- **001** (`3cba5d6`). Booking timeouts were also raised for modifications.
+  Unverified: how Disney behaves across a real hours-long search.
+- **002** (`1978a69`). Deviations: `start` checks storage rather than state
+  for a followed job, and a failed stop's message is also cleared once the
+  job is seen ended. Not yet seen on a phone.
+- **003** (`9122237`). An app already on a Home Screen keeps its old start
+  page until it is removed and added again.
+- **004** (`007fed7`). Unverified against a real partial offer.
+- **005** (`a2aeaf1`). Unverified against Disney: nobody has watched a search
+  move an offer at Walt Disney World. Watch the first one in the logs.
+- **006** (`c57583a`). Checked live: a host off the list answers 403, and
+  relayed answers carry the two headers.
+- **007** (`ec18b25`). The describer lives in `server/describe-error.ts`.
+- **008** (`962abad`). The migration that drops `account_hash` was applied in
+  production. The probe's two requests are dated explicitly; other client
+  calls it might add would still read the shared time zone.
+- **009** (`5f1864f`). Deviation: `railway config migrate` found nothing to
+  convert ("No services in production read Config as Code"), so there is no
+  `.railway/railway.ts`. The build command, start command and health check
+  were set on the Railway service instead, and `railway.json` was removed.
+- **010** (`e5a0a99`, `65cfaba`, `f2aab5d`). New user-facing text the owner
+  has not reviewed: "BG1 Couldn't Start", "Couldn't Load Disney's Login",
+  "Check your connection and try again.", "Checking on your search…",
+  "Couldn't Stop Auto Booking", and the rejection and party messages in
+  `auto-book-messages.ts`.
+- **011** (`5ef7162`). Left: `Park.color` and `Land.color` data, which nothing
+  reads now, and the `JobGuest` export.
+- **012** (`6a7e63d`). 119 tests in nine files. Not covered:
+  `server/jobs/outcome.ts` and the guest schema in `server/jobs/job.ts`
+  (importing them loads the push library, which jest can't load), the relay's
+  address builder (not exported), and the job runner, repository and worker
+  (they need a database).
 
 ## Dependency notes
 

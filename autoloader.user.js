@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         BG1 Autoloader
-// @namespace    https://aarock1234.github.io/bg1/
-// @version      0.4
+// @namespace    https://bg1-production.up.railway.app/bg1/
+// @version      0.5
 // @description  Automatically loads the BG1 interface
 // @author       aarock1234
 // @match        https://joelface.github.io/bg1/start.html
@@ -16,7 +16,7 @@
 'use strict';
 
 // Where the built app (bg1.js and bg1.css) is hosted.
-const APP_URL = 'https://aarock1234.github.io/bg1/dist/';
+const APP_URL = 'https://bg1-production.up.railway.app/bg1/';
 
 // The start page that links to the Disney pages BG1 takes over.
 const START_PAGE_URL = 'https://joelface.github.io/bg1/start.html';

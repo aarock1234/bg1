@@ -15,6 +15,7 @@ BG1 uses [pnpm](https://pnpm.io/).
 - `pnpm install` installs dependencies.
 - `pnpm start` runs the dev server at `https://localhost:3000/bg1/`.
 - `pnpm build` writes the production build to `dist/`.
+- `pnpm serve` runs the server that hosts `dist/` under `/bg1/`. Railway runs it on every push to `mickey`.
 - `pnpm checkall` runs the tests, linter, format check, and type check.
 
 The hosts BG1 depends on are listed in `src/config.ts`. The address the userscript loads the app from is `APP_URL` in `autoloader.user.js`.

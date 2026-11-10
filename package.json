@@ -5,8 +5,9 @@
   "license": "GPL-3.0-only",
   "repository": "github:aarock1234/bg1",
   "engines": {
-    "node": ">=22"
+    "node": ">=24"
   },
+  "packageManager": "pnpm@12.14.0",
   "dependencies": {
     "@hono/node-server": "^2.1.6",
     "hono": "^4.13.17",

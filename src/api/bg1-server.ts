@@ -7,6 +7,7 @@ import type { ProbeReport, ProbeRequest } from '../../server/probe/probe';
 export type { ProbeReport, ProbeRequest };
 
 const SECRET_KEY = 'bg1.server.secret';
+const CONNECT_PARAM = 'connect';
 
 // How long the server may take to finish every check in a probe.
 const PROBE_TIMEOUT_MS = 60_000;
@@ -34,6 +35,21 @@ export const serverSecret = {
 
   clear(): void {
     kvdb.delete(SECRET_KEY);
+  },
+
+  // Saves the secret carried by a connection link (`#connect=<secret>`), then
+  // removes it from the address so it isn't left in the browser's history.
+  acceptConnectionLink(): void {
+    const linkedSecret = new URLSearchParams(location.hash.slice(1)).get(
+      CONNECT_PARAM
+    );
+
+    if (!linkedSecret) {
+      return;
+    }
+
+    this.set(linkedSecret);
+    history.replaceState(null, '', location.pathname + location.search);
   },
 };
 

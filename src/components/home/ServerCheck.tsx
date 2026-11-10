@@ -106,19 +106,19 @@ function SecretForm({ onSave }: SecretFormProps) {
   return (
     <form className="secret-form" onSubmit={save}>
       <p>
-        Paste the server secret to connect this device. It is the
-        <code> API_SECRET </code>
-        variable of the bg1 service on Railway.
+        This device isn't connected to the server yet. Open your connection link
+        on it, or paste the server secret.
       </p>
       <input
         type="password"
+        className="field"
         value={secret}
         onChange={event => setSecret(event.currentTarget.value)}
         placeholder="Server secret"
         aria-label="Server secret"
         autoComplete="off"
       />
-      <button type="submit" className="button button-install">
+      <button type="submit" className="button button-wide">
         Connect
       </button>
     </form>
@@ -129,12 +129,14 @@ function Report({ report }: ReportProps) {
   const { checks, login } = report;
 
   return (
-    <div className="report">
-      <ul className="checks">
+    <>
+      <ul className="list checks">
         {checks.map(check => (
           <li key={check.name} className={check.ok ? 'check-ok' : 'check-bad'}>
             <strong>{check.name}</strong>
-            {check.detail} ({check.durationMs} ms)
+            <span>
+              {check.detail} · {check.durationMs} ms
+            </span>
           </li>
         ))}
       </ul>
@@ -144,7 +146,7 @@ function Report({ report }: ReportProps) {
           ? ' and can be renewed without signing in again.'
           : ' and then needs a new sign-in.'}
       </p>
-    </div>
+    </>
   );
 }
 
@@ -241,15 +243,15 @@ export default function ServerCheck() {
   return (
     <>
       <p>
-        Sign in to Disney and check whether the BG1 server can reach Disney for
-        you.
+        Pick a resort and sign in to Disney. The server then tries to reach
+        Disney with your login and shows what worked.
       </p>
-      <div className="buttons">
+      <div className="button-pair">
         {RESORT_IDS.map(resortId => (
           <button
             key={resortId}
             type="button"
-            className="button button-quiet"
+            className="button button-secondary button-wide"
             disabled={check.kind === 'running'}
             onClick={() => startCheck(resortId)}
           >
@@ -263,11 +265,9 @@ export default function ServerCheck() {
       {signingInResort && (
         <LoginForm resort={signingInResort} onLogin={finishSignIn} />
       )}
-      <p>
-        <button type="button" className="link-button" onClick={forgetSecret}>
-          Disconnect this device
-        </button>
-      </p>
+      <button type="button" className="link-button" onClick={forgetSecret}>
+        Disconnect this device
+      </button>
     </>
   );
 }

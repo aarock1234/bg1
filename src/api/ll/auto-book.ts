@@ -12,9 +12,10 @@ import type {
 } from '../ll';
 import { bookForGuests } from './booking';
 
-// How long to wait between checks. Each check makes up to three requests, and
-// the client refuses everything once it makes more than five in one second.
-const POLL_INTERVAL_MS = 1000;
+// How long to wait between checks unless the request says otherwise. Each
+// check makes up to three requests, and the browser's client refuses
+// everything once it makes more than five in one second.
+const DEFAULT_POLL_INTERVAL_MS = 1000;
 
 const MAX_BACKOFF_MS = 30_000;
 
@@ -69,6 +70,10 @@ export type AutoBookRequest = {
   // Stops the search. A booking request that is already on its way to Disney
   // can't be recalled, so a booking may still be returned after aborting.
   signal: AbortSignal;
+
+  // How long to wait between checks. Whoever shortens it must give the
+  // client a rate limit that allows the faster pace.
+  pollIntervalMs?: number;
 
   onAttempt?: (attempt: AutoBookAttempt) => void;
 };
@@ -131,13 +136,16 @@ function hasNoEligibleGuests(guests: Guests): boolean {
 
 // Doubles the wait after each consecutive failure, with jitter so retries
 // don't land in step with anyone else's.
-function retryDelayMs(consecutiveFailures: number): number {
+function retryDelayMs(
+  consecutiveFailures: number,
+  pollIntervalMs: number
+): number {
   if (consecutiveFailures === 0) {
-    return POLL_INTERVAL_MS;
+    return pollIntervalMs;
   }
 
   const ceilingMs = Math.min(
-    POLL_INTERVAL_MS * 2 ** consecutiveFailures,
+    pollIntervalMs * 2 ** consecutiveFailures,
     MAX_BACKOFF_MS
   );
   const jitter = 0.5 + Math.random() / 2;
@@ -220,7 +228,11 @@ async function attemptBooking(
 // Rejects with the signal's reason when aborted, and with the error when a
 // check fails in a way that retrying can't fix.
 export async function autoBook(request: AutoBookRequest): Promise<LLMP> {
-  const { signal, onAttempt } = request;
+  const {
+    signal,
+    onAttempt,
+    pollIntervalMs = DEFAULT_POLL_INTERVAL_MS,
+  } = request;
   let consecutiveFailures = 0;
 
   while (true) {
@@ -239,7 +251,7 @@ export async function autoBook(request: AutoBookRequest): Promise<LLMP> {
       throw new ConnectionLost();
     }
 
-    const retryInMs = retryDelayMs(consecutiveFailures);
+    const retryInMs = retryDelayMs(consecutiveFailures, pollIntervalMs);
 
     onAttempt?.({
       ...result,

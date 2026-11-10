@@ -15,12 +15,32 @@ BG1 uses [pnpm](https://pnpm.io/).
 - `pnpm install` installs dependencies.
 - `pnpm start` runs the dev server at `https://localhost:3000/bg1/`.
 - `pnpm build` writes the production build to `dist/`.
-- `pnpm serve` runs the server that hosts `dist/` under `/bg1/`. Railway runs it on every push to `mickey`. Its API is open and rate limited per visitor; callers identify themselves with their own Disney login. `DISNEY_PROXIES` is optional: a list of `host:port:username:password` proxies for the server's requests to Disney.
+- `pnpm serve` runs the server that hosts `dist/` under `/bg1/`. Railway runs it on every push to `mickey`. Its API is open and rate limited per visitor; callers identify themselves with their own Disney login. It needs the variables listed under [Server](#server).
+- `pnpm db:generate` writes a migration to `server/db/migrations/` after a change to `server/db/schema.ts`. The server applies pending migrations when it starts.
 - `pnpm checkall` runs the tests, linter, format check, and type check.
 
 The hosts BG1 depends on are listed in `src/config.ts`. The home page and the userscript live in `site/`; the address the userscript loads the app from is `HOME_URL` in `site/autoloader.user.js`.
 
 The server also answers a few short links: `/install` (the userscript), `/wdw`, `/wdw/vq`, `/dlr`, and `/dlr/vq` (the Disney pages BG1 runs on).
+
+## Server
+
+Besides hosting the app, the server runs auto-book jobs: the app hands over a search (`POST /api/jobs`) and the server keeps checking and books the Lightning Lane after the phone is closed, then sends a push notification. Jobs live in Postgres, and each guest's Disney login is stored encrypted and deleted when its job ends.
+
+| Variable                     | Required | Default                            | Purpose                                                                                                  |
+| ---------------------------- | -------- | ---------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`               | yes      |                                    | The Postgres database that holds the jobs.                                                               |
+| `LOGIN_ENCRYPTION_KEY`       | yes      |                                    | 32 random bytes, base64 encoded. Encrypts stored logins; changing it makes running jobs fail.            |
+| `VAPID_PUBLIC_KEY`           | yes      |                                    | Web Push public key, base64url encoded.                                                                  |
+| `VAPID_PRIVATE_KEY`          | yes      |                                    | Web Push private key, base64url encoded.                                                                 |
+| `VAPID_SUBJECT`              | yes      |                                    | The contact push services are given: an `https:` or `mailto:` URL.                                       |
+| `AUTO_BOOK_POLL_INTERVAL_MS` | no       | `1000`                             | How long a job waits between two checks. At least `100`.                                                 |
+| `DISNEY_REQUESTS_PER_SECOND` | no       | the lowest safe value for the pace | How many requests one job may send Disney per second before it stops itself. `8` at the default pace.    |
+| `DISNEY_PROXIES`             | no       | none                               | `host:port:username:password` proxies, one per line or separated by commas. The probe tries one of them. |
+| `DISNEY_USE_PROXIES`         | no       | `false`                            | `true` sends each job's requests to Disney through one of `DISNEY_PROXIES`.                              |
+| `PORT`                       | no       | `8080`                             | The port to listen on.                                                                                   |
+| `LOG_LEVEL`                  | no       | `info`                             | `debug`, `info`, `warn`, or `error`.                                                                     |
+| `NODE_ENV`                   | no       | `development`                      | `production` writes logs as JSON.                                                                        |
 
 ## Acknowledgments
 

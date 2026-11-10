@@ -5,17 +5,27 @@ import { RESORT_IDS, RESORT_TIME_ZONES } from '@/api/resort';
 import { sensorData } from '@/api/sensor-data';
 import { DateTime, parkDate } from '@/datetime';
 
+import { accessTokenClaims } from '../disney/access-token';
 import { llClientFor, resortFor } from '../disney/clients';
-import { type DisneyLogin, disneyLoginSchema } from '../disney/credentials';
+import {
+  type DisneyLogin,
+  disneyLoginSchema,
+  loginAuth,
+} from '../disney/credentials';
 import { proxiedFetch } from '../disney/proxies';
+import { LoginRefreshFailed, refreshLogin } from '../disney/refresh';
 
 const MS_PER_MINUTE = 60_000;
-const JWT_PART_COUNT = 3;
 const MS_PER_SECOND = 1000;
 
 export const probeRequestSchema = z.object({
   resortId: z.enum(RESORT_IDS),
   login: disneyLoginSchema,
+
+  // Also checks whether the login can be refreshed. Disney may retire the
+  // refresh token it is given, and the probe throws the new login away, so
+  // the guest should log in again afterward.
+  refresh: z.boolean().optional(),
 });
 
 export type ProbeRequest = z.infer<typeof probeRequestSchema>;
@@ -55,11 +65,6 @@ export type ProbeReport = {
   login: LoginLifetime;
 };
 
-const jwtClaimsSchema = z.object({
-  iat: z.number().optional(),
-  exp: z.number().optional(),
-});
-
 function minutesUntil(timestampMs: number): number {
   return Math.round((timestampMs - Date.now()) / MS_PER_MINUTE);
 }
@@ -72,32 +77,9 @@ function toIsoTime(epochSeconds: number | undefined): string | undefined {
   return new Date(epochSeconds * MS_PER_SECOND).toISOString();
 }
 
-// Reads the issue and expiry times from an access token that is a JWT.
-// Returns an empty object for any other kind of token.
-function jwtTimes(
-  accessToken: string
-): Pick<LoginLifetime, 'tokenIssuedAt' | 'tokenExpiresAt'> {
-  const parts = accessToken.split('.');
-  const [, payload] = parts;
-
-  if (parts.length !== JWT_PART_COUNT || !payload) {
-    return {};
-  }
-
-  try {
-    const json = Buffer.from(payload, 'base64url').toString('utf8');
-    const claims = jwtClaimsSchema.parse(JSON.parse(json));
-
-    return {
-      tokenIssuedAt: toIsoTime(claims.iat),
-      tokenExpiresAt: toIsoTime(claims.exp),
-    };
-  } catch {
-    return {};
-  }
-}
-
 function loginLifetime(login: DisneyLogin): LoginLifetime {
+  const claims = accessTokenClaims(login.accessToken);
+
   return {
     expiresInMinutes: minutesUntil(login.expires),
     hasRefreshToken: login.refreshToken !== undefined,
@@ -105,7 +87,8 @@ function loginLifetime(login: DisneyLogin): LoginLifetime {
       login.refreshExpires === undefined
         ? undefined
         : minutesUntil(login.refreshExpires),
-    ...jwtTimes(login.accessToken),
+    tokenIssuedAt: toIsoTime(claims.iat),
+    tokenExpiresAt: toIsoTime(claims.exp),
   };
 }
 
@@ -114,6 +97,10 @@ function loginLifetime(login: DisneyLogin): LoginLifetime {
 function failureDetail(error: unknown): string {
   if (error instanceof RequestError) {
     return `status ${error.response.status}`;
+  }
+
+  if (error instanceof LoginRefreshFailed) {
+    return error.reason;
   }
 
   if (error instanceof Error) {
@@ -154,7 +141,7 @@ async function disneyChecks(
 ): Promise<ProbeCheck[]> {
   const { resortId, login } = request;
   const resort = await resortFor(resortId);
-  const ll = await llClientFor(resortId, login, {
+  const ll = await llClientFor(resortId, loginAuth(login), {
     fetch: route.fetch,
   });
   const [park] = resort.parks;
@@ -175,6 +162,20 @@ async function disneyChecks(
       return `${guests.eligible.length} eligible and ${guests.ineligible.length} ineligible guests`;
     }),
   ];
+}
+
+// Finds out whether Disney trades the login's refresh token for a new login.
+// Only the new login's lifetime is reported, never its tokens.
+function refreshCheck(request: ProbeRequest): Promise<ProbeCheck> {
+  return runCheck('login refresh', async () => {
+    const login = await refreshLogin(request.login, request.resortId);
+    const refreshLifetime =
+      login.refreshExpires === undefined
+        ? 'an unknown time'
+        : `${minutesUntil(login.refreshExpires)} minutes`;
+
+    return `new login expires in ${minutesUntil(login.expires)} minutes and can be refreshed for ${refreshLifetime}`;
+  });
 }
 
 // Finds out whether Disney and the sensor data service accept requests from
@@ -209,6 +210,11 @@ export async function probe(
 
   for (const route of routes) {
     checks.push(...(await disneyChecks(request, route)));
+  }
+
+  // This comes last: refreshing may end the login the other checks use.
+  if (request.refresh) {
+    checks.push(await refreshCheck(request));
   }
 
   return {

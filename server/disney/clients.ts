@@ -1,8 +1,7 @@
+import type { Auth } from '@/api/auth';
 import type { LLClient, LLClientOptions } from '@/api/ll';
 import { createLLClient } from '@/api/ll/create';
 import { type Resort, type ResortId, loadResort } from '@/api/resort';
-
-import { type DisneyLogin, loginAuth } from './credentials';
 
 // The browser app remembers which experiences a guest has used so it can mark
 // them in its list. The server has no list to mark.
@@ -25,16 +24,18 @@ export function resortFor(resortId: ResortId): Promise<Resort> {
   return resort;
 }
 
-// Creates a Lightning Lane client that acts as the guest who handed over the
-// login.
+type ServerClientOptions = Omit<LLClientOptions, 'auth' | 'tracker'>;
+
+// Creates a Lightning Lane client that acts as the guest whose login `auth`
+// serves.
 export async function llClientFor(
   resortId: ResortId,
-  login: DisneyLogin,
-  options: LLClientOptions = {}
+  auth: Auth,
+  options: ServerClientOptions = {}
 ): Promise<LLClient> {
   return createLLClient(await resortFor(resortId), {
-    auth: loginAuth(login),
-    tracker: NO_TRACKING,
     ...options,
+    auth,
+    tracker: NO_TRACKING,
   });
 }

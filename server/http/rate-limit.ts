@@ -59,6 +59,7 @@ export function rateLimit(options: RateLimitOptions): MiddlewareHandler {
       return context.json(
         {
           error: 'too many requests',
+          code: 'rate_limited',
         },
         429
       );

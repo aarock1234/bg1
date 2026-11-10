@@ -13,9 +13,17 @@ export const disneyLoginSchema = z.object({
 
 export type DisneyLogin = z.infer<typeof disneyLoginSchema>;
 
+export type LoginAuth = Auth & {
+  // Continues with a login that replaces the current one, such as after a
+  // refresh.
+  replaceLogin(login: DisneyLogin): void;
+};
+
 // Serves one guest's login to a Disney client. Once Disney rejects the login
-// it stays unusable, because the server has no way to log in again.
-export function loginAuth(login: DisneyLogin): Auth {
+// it stays unusable until it is replaced, because the server has no way to
+// log in again.
+export function loginAuth(initialLogin: DisneyLogin): LoginAuth {
+  let login = initialLogin;
   let isRejected = false;
 
   return {
@@ -32,6 +40,11 @@ export function loginAuth(login: DisneyLogin): Auth {
 
     deleteData() {
       isRejected = true;
+    },
+
+    replaceLogin(newLogin) {
+      login = newLogin;
+      isRejected = false;
     },
   };
 }

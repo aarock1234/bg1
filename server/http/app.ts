@@ -8,6 +8,8 @@ import { fetchTokenFromService } from '@/api/sensor-data';
 import { HOSTS } from '@/config';
 import { WEB_ROUTE_PATHS } from '@/web-route';
 
+import { createJobRoutes } from '../jobs/routes';
+import type { Worker } from '../jobs/worker';
 import { logger } from '../log';
 import { probe, probeRequestSchema } from '../probe/probe';
 import { rateLimit } from './rate-limit';
@@ -41,8 +43,24 @@ const RELAY_RATE_LIMIT = {
   windowMs: ONE_MINUTE_MS,
 };
 
+// How often one visitor may ask for the key push subscriptions are made with.
+const PUSH_KEY_RATE_LIMIT = {
+  limit: 60,
+  windowMs: ONE_MINUTE_MS,
+};
+
 type AppOptions = {
   proxyUrls: string[];
+
+  // Runs the auto-book jobs the API creates.
+  worker: Pick<Worker, 'wake' | 'cancel'>;
+
+  // The key browsers subscribe to this server's push notifications with.
+  vapidPublicKey: string;
+};
+
+export type PushPublicKeyResponse = {
+  publicKey: string;
 };
 
 // The autoloader fetches the app from Disney's pages as a module script, which
@@ -112,6 +130,16 @@ function createApi(options: AppOptions): Hono {
     );
 
     return context.json(report);
+  });
+
+  api.route('/jobs', createJobRoutes(options.worker));
+
+  api.get('/push/public-key', rateLimit(PUSH_KEY_RATE_LIMIT), context => {
+    const response: PushPublicKeyResponse = {
+      publicKey: options.vapidPublicKey,
+    };
+
+    return context.json(response);
   });
 
   return api;

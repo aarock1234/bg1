@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { minimumRequestsPerSecond } from '../disney/pace';
 import { parseProxies } from '../disney/proxies';
 
 export const NodeEnv = {
@@ -19,15 +20,94 @@ export const LogLevel = {
 
 export type LogLevel = (typeof LogLevel)[keyof typeof LogLevel];
 
-const envSchema = z.object({
-  NODE_ENV: z.enum(Object.values(NodeEnv)).default(NodeEnv.DEVELOPMENT),
-  LOG_LEVEL: z.enum(Object.values(LogLevel)).default(LogLevel.INFO),
-  PORT: z.coerce.number().int().positive().default(8080),
+const AES_256_KEY_BYTES = 32;
 
-  // Proxies for requests to Disney, as `host:port:username:password`, one per
-  // line or separated by commas. Without any, requests go out directly.
-  DISNEY_PROXIES: z.string().default('').transform(parseProxies),
-});
+// An uncompressed P-256 point, and the private scalar that goes with it.
+const VAPID_PUBLIC_KEY_BYTES = 65;
+const VAPID_PRIVATE_KEY_BYTES = 32;
+
+const FASTEST_POLL_INTERVAL_MS = 100;
+const DEFAULT_POLL_INTERVAL_MS = 1000;
+
+function base64UrlKey(byteLength: number) {
+  return z.string().refine(
+    value => {
+      return Buffer.from(value, 'base64url').length === byteLength;
+    },
+    {
+      error: `must be ${byteLength} bytes, base64url encoded`,
+    }
+  );
+}
+
+const flag = z
+  .enum(['true', 'false'])
+  .default('false')
+  .transform(value => value === 'true');
+
+const envSchema = z
+  .object({
+    NODE_ENV: z.enum(Object.values(NodeEnv)).default(NodeEnv.DEVELOPMENT),
+    LOG_LEVEL: z.enum(Object.values(LogLevel)).default(LogLevel.INFO),
+    PORT: z.coerce.number().int().positive().default(8080),
+
+    // The Postgres database that holds auto-book jobs.
+    DATABASE_URL: z.url(),
+
+    // The AES-256 key that encrypts guests' Disney logins at rest: 32 random
+    // bytes, base64 encoded.
+    LOGIN_ENCRYPTION_KEY: z
+      .base64()
+      .transform(value => Buffer.from(value, 'base64'))
+      .refine(key => key.length === AES_256_KEY_BYTES, {
+        error: `must be ${AES_256_KEY_BYTES} bytes, base64 encoded`,
+      }),
+
+    // The key pair that signs Web Push notifications, base64url encoded, and
+    // the contact address push services are given: an https: or mailto: URL.
+    VAPID_PUBLIC_KEY: base64UrlKey(VAPID_PUBLIC_KEY_BYTES),
+    VAPID_PRIVATE_KEY: base64UrlKey(VAPID_PRIVATE_KEY_BYTES),
+    VAPID_SUBJECT: z.url(),
+
+    // How long a job waits between two checks for a Lightning Lane.
+    AUTO_BOOK_POLL_INTERVAL_MS: z.coerce
+      .number()
+      .int()
+      .min(FASTEST_POLL_INTERVAL_MS)
+      .default(DEFAULT_POLL_INTERVAL_MS),
+
+    // How many requests one job may send Disney per second before it stops
+    // itself. Defaults to the lowest limit the poll interval can never reach.
+    DISNEY_REQUESTS_PER_SECOND: z.coerce.number().int().positive().optional(),
+
+    // Proxies for requests to Disney, as `host:port:username:password`, one
+    // per line or separated by commas.
+    DISNEY_PROXIES: z.string().default('').transform(parseProxies),
+
+    // Whether jobs send their requests through one of DISNEY_PROXIES. Disney
+    // accepts direct requests, so this is off unless set to `true`.
+    DISNEY_USE_PROXIES: flag,
+  })
+  .superRefine((values, context) => {
+    const requestsPerSecond = values.DISNEY_REQUESTS_PER_SECOND;
+    const minimum = minimumRequestsPerSecond(values.AUTO_BOOK_POLL_INTERVAL_MS);
+
+    if (requestsPerSecond !== undefined && requestsPerSecond < minimum) {
+      context.addIssue({
+        code: 'custom',
+        path: ['DISNEY_REQUESTS_PER_SECOND'],
+        message: `must be at least ${minimum} when AUTO_BOOK_POLL_INTERVAL_MS is ${values.AUTO_BOOK_POLL_INTERVAL_MS}`,
+      });
+    }
+
+    if (values.DISNEY_USE_PROXIES && values.DISNEY_PROXIES.length === 0) {
+      context.addIssue({
+        code: 'custom',
+        path: ['DISNEY_USE_PROXIES'],
+        message: 'needs at least one proxy in DISNEY_PROXIES',
+      });
+    }
+  });
 
 export type Env = z.infer<typeof envSchema>;
 

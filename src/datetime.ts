@@ -167,6 +167,29 @@ export class DateFormat {
   }
 }
 
+const timeZoneFormats = new Map<string, DateFormat>();
+
+// Returns the format that reads a date's parts in the given time zone.
+function timeZoneFormat(timeZone: string): DateFormat {
+  let format = timeZoneFormats.get(timeZone);
+
+  if (!format) {
+    format = new DateFormat({
+      timeZone,
+      hourCycle: 'h23',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
+    timeZoneFormats.set(timeZone, format);
+  }
+
+  return format;
+}
+
 // A date and time in the resort's time zone.
 export class DateTime {
   readonly date;
@@ -193,16 +216,7 @@ export class DateTime {
   }
 
   static setTimeZone(timeZone: string): void {
-    DateTime.format = new DateFormat({
-      timeZone,
-      hourCycle: 'h23',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-    });
+    DateTime.format = timeZoneFormat(timeZone);
   }
 
   constructor(date: string, time: ParkTime) {
@@ -220,6 +234,20 @@ export class DateTime {
 }
 
 DateTime.setTimeZone('America/New_York');
+
+// Returns the date and time in the given time zone, now or at `instant`.
+// Unlike DateTime.now, it ignores the zone set with DateTime.setTimeZone, so
+// one process can tell the time at several resorts at once.
+export function dateTimeInZone(
+  timeZone: string,
+  instant: Date | number = Date.now()
+): DateTime {
+  const parts = timeZoneFormat(timeZone).parts(instant);
+  const date = `${parts.year}-${parts.month}-${parts.day}`;
+  const time = `${parts.hour}:${parts.minute}:${parts.second}`;
+
+  return new DateTime(date, ParkTime.from(time));
+}
 
 // Returns the YYYY-MM-DD date that is `days` away from `date`.
 export function modifyDate(date: Dateable, days: number): string {

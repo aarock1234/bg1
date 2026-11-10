@@ -16,6 +16,7 @@ async function main(): Promise<void> {
   logger.info('database migrations applied');
 
   const worker = startWorker({
+    action: env.AUTO_BOOK_ACTION,
     pollIntervalMs: env.AUTO_BOOK_POLL_INTERVAL_MS,
     requestsPerSecond:
       env.DISNEY_REQUESTS_PER_SECOND ??

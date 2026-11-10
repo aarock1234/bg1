@@ -7,6 +7,9 @@ import { pushSubscriptionSchema } from '../push/notify';
 export const JobStatus = {
   SEARCHING: 'searching',
   BOOKED: 'booked',
+
+  // A return time in range came up, for the guest to book themselves.
+  AVAILABLE: 'available',
   FAILED: 'failed',
   CANCELLED: 'cancelled',
   EXPIRED: 'expired',
@@ -87,8 +90,8 @@ export const lastAttemptSchema = z.object({
 
 export type LastAttempt = z.infer<typeof lastAttemptSchema>;
 
-// The Lightning Lane a job booked. The times are on the resort's clock, as
-// YYYY-MM-DDTHH:MM:SS.
+// The Lightning Lane a job booked, or found available. The times are on the
+// resort's clock, as YYYY-MM-DDTHH:MM:SS.
 export const bookingResultSchema = z.object({
   experienceName: z.string(),
   start: z.string(),
@@ -139,7 +142,7 @@ export type JobProgress = Pick<Job, 'attemptCount' | 'lastAttempt'>;
 // How a search ended.
 export type JobOutcome =
   | {
-      status: typeof JobStatus.BOOKED;
+      status: typeof JobStatus.BOOKED | typeof JobStatus.AVAILABLE;
       result: BookingResult;
     }
   | {

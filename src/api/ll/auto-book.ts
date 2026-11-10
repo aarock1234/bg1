@@ -101,7 +101,7 @@ export class NoEligibleGuests extends Error {
   }
 }
 
-function isWithinRange(time: ParkTime, range: ReturnTimeRange): boolean {
+export function isWithinRange(time: ParkTime, range: ReturnTimeRange): boolean {
   return time >= range.earliest && time <= range.latest;
 }
 
@@ -115,7 +115,7 @@ function isUnavailable(error: unknown): boolean {
 // requests. Everything else is worth another try, whether it is a dropped
 // connection, a rejected bot-protection token, throttling, or an answer
 // nobody expected.
-function isFinal(error: unknown): boolean {
+export function isFinal(error: unknown): boolean {
   return (
     error instanceof ReauthNeeded ||
     error instanceof ModifyNotAllowed ||
@@ -152,7 +152,7 @@ function hasNoEligibleGuests(guests: Guests): boolean {
 
 // Doubles the wait after each consecutive failure, with jitter so retries
 // don't land in step with anyone else's.
-function retryDelayMs(
+export function retryDelayMs(
   consecutiveFailures: number,
   pollIntervalMs: number
 ): number {
@@ -169,7 +169,7 @@ function retryDelayMs(
   return Math.round(ceilingMs * jitter);
 }
 
-function wait(ms: number, signal: AbortSignal): Promise<void> {
+export function wait(ms: number, signal: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
     if (signal.aborted) {
       reject(signal.reason);

@@ -2,16 +2,23 @@ import { ReauthNeeded } from '@/api/auth';
 import { RequestError } from '@/api/client';
 import { type Guests, type LLMP, ModifyNotAllowed } from '@/api/ll';
 import { NoEligibleGuests } from '@/api/ll/auto-book';
+import type { ParkTime } from '@/datetime';
 import { RateLimitExceeded } from '@/ratelimit';
 
-import { FailureCode, type JobOutcome, JobStatus } from './job';
+import {
+  FailureCode,
+  type Job,
+  type JobFailure,
+  type JobOutcome,
+  JobStatus,
+} from './job';
 
 const STATUS_UNAUTHORIZED = 401;
 
-type UnsuccessfulOutcome = Exclude<
+type UnsuccessfulOutcome = Extract<
   JobOutcome,
   {
-    status: typeof JobStatus.BOOKED;
+    failure: JobFailure;
   }
 >;
 
@@ -33,6 +40,25 @@ export function booked(booking: LLMP): JobOutcome {
       start: booking.start.toString(),
       end: booking.end.toString(),
       guestNames: booking.guests.map(guest => guest.name),
+    },
+  };
+}
+
+// A return time in range came up. Disney says nothing about how long it
+// lasts, so the window's end is left as its start.
+export function available(
+  job: Pick<Job, 'experienceName' | 'bookingDate' | 'guests'>,
+  time: ParkTime
+): JobOutcome {
+  const start = `${job.bookingDate}T${time.toString()}`;
+
+  return {
+    status: JobStatus.AVAILABLE,
+    result: {
+      experienceName: job.experienceName,
+      start,
+      end: start,
+      guestNames: job.guests.map(guest => guest.name),
     },
   };
 }

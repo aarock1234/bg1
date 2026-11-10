@@ -218,6 +218,8 @@ export async function saveLogin(update: LoginUpdate): Promise<void> {
 export async function finishJob(ending: JobEnding): Promise<boolean> {
   const { outcome } = ending;
   const isBooked = outcome.status === JobStatus.BOOKED;
+  const result = 'result' in outcome ? outcome.result : null;
+  const failure = 'failure' in outcome ? outcome.failure : null;
 
   const rows = await db
     .update(jobs)
@@ -225,9 +227,9 @@ export async function finishJob(ending: JobEnding): Promise<boolean> {
       ...ending.progress,
       ...ENDED,
       status: outcome.status,
-      result: isBooked ? outcome.result : null,
-      failureCode: isBooked ? null : outcome.failure.code,
-      failureMessage: isBooked ? null : outcome.failure.message,
+      result,
+      failureCode: failure?.code ?? null,
+      failureMessage: failure?.message ?? null,
     })
     .where(
       isBooked

@@ -84,6 +84,11 @@ const envSchema = z
     // per line or separated by commas.
     DISNEY_PROXIES: z.string().default('').transform(parseProxies),
 
+    // What a job does when a return time in range comes up: `notify` the
+    // guest, who books it in the Disney app, or `book` it. Disney refuses
+    // BG1's bookings for now, so jobs notify unless told otherwise.
+    AUTO_BOOK_ACTION: z.enum(['notify', 'book']).default('notify'),
+
     // A bot-protection token captured from the official Disney app, sent in
     // place of the ones the BG1 backend hands out, which Disney refuses for
     // offers and bookings.

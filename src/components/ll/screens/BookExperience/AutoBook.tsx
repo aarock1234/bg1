@@ -16,6 +16,7 @@ import {
   bookedMessage,
   rejectionMessage,
 } from './auto-book-messages';
+import { disneyAppLink } from './disney-app';
 
 type AutoBookProps = {
   state: ServerJobState;
@@ -161,7 +162,28 @@ function Outcome({ state }: OutcomeProps) {
     return null;
   }
 
-  const { status, result, failure } = state.job;
+  const { status, result, failure, resortId } = state.job;
+
+  if (status === 'available' && result) {
+    const app = disneyAppLink(resortId);
+
+    return (
+      <Alert title="Lightning Lane Available" className="bg-pressed">
+        <p>
+          {bookedMessage(result)} is available. Book it in the {app.name} now,
+          before it's gone.
+        </p>
+        <a
+          href={app.url}
+          target="_blank"
+          rel="noreferrer"
+          className="btn btn-primary btn-full mt-3"
+        >
+          Open the {app.name}
+        </a>
+      </Alert>
+    );
+  }
 
   if (status === 'booked' && result) {
     return (
@@ -232,8 +254,9 @@ export default function AutoBook(props: AutoBookProps) {
     <section className="card mt-6">
       <h3 className="mt-0">Auto Booking</h3>
       <p className="note mt-1">
-        BG1 keeps checking and books the first return time that falls within
-        your range, even with your phone closed.
+        BG1 keeps checking, even with your phone closed, and tells you the
+        moment a return time within your range comes up, so you can book it in
+        the Disney app.
         {canNotify() && ' You get a notification when it does.'}
       </p>
       <div className="mt-4 grid grid-cols-2 gap-3">

@@ -26,12 +26,21 @@ export function outcomeNotification(
 ): PushMessage {
   const url = `${HOSTS.HOME}${APP_PATHS[job.resortId]}`;
 
-  if (outcome.status === JobStatus.BOOKED) {
+  if ('result' in outcome) {
     const { experienceName, start } = outcome.result;
+    const time = returnTime(start);
+
+    if (outcome.status === JobStatus.AVAILABLE) {
+      return {
+        title: 'Lightning Lane available now',
+        body: `${experienceName} at ${time}. Book it in the Disney app before it's gone.`,
+        url,
+      };
+    }
 
     return {
       title: 'Lightning Lane booked',
-      body: `${experienceName} at ${returnTime(start)}`,
+      body: `${experienceName} at ${time}`,
       url,
     };
   }

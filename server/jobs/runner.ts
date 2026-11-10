@@ -22,7 +22,13 @@ import { logger } from '../log';
 import { sendPush } from '../push/notify';
 import type { Job, JobOutcome, JobProgress } from './job';
 import { outcomeNotification } from './notification';
-import { LOGIN_EXPIRED, WINDOW_OVER, booked, outcomeOfError } from './outcome';
+import {
+  LOGIN_EXPIRED,
+  WINDOW_OVER,
+  available,
+  booked,
+  outcomeOfError,
+} from './outcome';
 import {
   type Lease,
   finishJob,
@@ -30,6 +36,7 @@ import {
   renewLease,
   saveLogin,
 } from './repository';
+import { watchForReturnTime } from './watch';
 import { isWindowOver, resortNow } from './window';
 
 // How often a running job renews its lease, saves its progress, and checks
@@ -78,9 +85,19 @@ class SearchStopped extends Error {
   }
 }
 
+// What a job does once a return time in range comes up: book it, or tell the
+// guest so they can book it in the Disney app.
+export const JobAction = {
+  BOOK: 'book',
+  NOTIFY: 'notify',
+} as const;
+
+export type JobAction = (typeof JobAction)[keyof typeof JobAction];
+
 export type RunnerOptions = {
   // Identifies this server instance in the jobs' leases.
   owner: string;
+  action: JobAction;
   leaseMs: number;
   pollIntervalMs: number;
   requestsPerSecond: number;
@@ -205,7 +222,7 @@ class JobRun {
 
       return {
         kind: 'finished',
-        outcome: booked(await this.autoBook(session)),
+        outcome: await this.find(session),
       };
     } catch (error) {
       return this.endingOfError(error);
@@ -226,6 +243,39 @@ class JobRun {
       login,
       auth: loginAuth(login),
     };
+  }
+
+  // Books a return time in range, or, when jobs only notify, waits for one
+  // to come up.
+  private async find(session: Session): Promise<JobOutcome> {
+    if (this.options.action === JobAction.NOTIFY) {
+      return available(this.job, await this.watch(session));
+    }
+
+    return booked(await this.autoBook(session));
+  }
+
+  private async watch(session: Session): Promise<ParkTime> {
+    const { job, options } = this;
+    const resort = await resortFor(job.resortId);
+    const ll = await llClientFor(job.resortId, session.auth, {
+      fetch: this.fetch,
+      rateLimit: new RateLimit(options.requestsPerSecond),
+    });
+
+    return watchForReturnTime({
+      ll,
+      experienceId: job.experienceId,
+      park: resort.experience(job.experienceId).park,
+      date: job.bookingDate,
+      range: {
+        earliest: ParkTime.from(job.earliest),
+        latest: ParkTime.from(job.latest),
+      },
+      signal: this.controller.signal,
+      pollIntervalMs: options.pollIntervalMs,
+      onAttempt: attempt => this.recordAttempt(attempt),
+    });
   }
 
   private async autoBook(session: Session) {

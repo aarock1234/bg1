@@ -73,8 +73,11 @@ function primaryGuestId(guests: Guest[]): string | undefined {
 }
 
 export class LLClientDLR extends LLClient {
-  async experiences(park: Park): Promise<Experience[]> {
-    return super.experiences(park, parkDate());
+  async experiences(
+    park: Park,
+    date: string = parkDate()
+  ): Promise<Experience[]> {
+    return super.experiences(park, date);
   }
 
   async guests(experience?: Pick<Experience, 'id'>): Promise<Guests> {
